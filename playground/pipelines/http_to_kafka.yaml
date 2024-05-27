@@ -1,0 +1,5 @@
+steps:
+- name: HTTP Source
+  handler: source_http
+- name: Kafka Destination
+  handler: destination_kafka
