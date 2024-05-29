@@ -1,10 +1,12 @@
-use std::{env, error::Error, ffi::CStr, fs, io, str};
+use std::collections::HashMap;
+use std::{env, error::Error, fs, io, str};
 
 use clap::{arg, command, Parser};
 use log::debug;
 use serde::{Serialize, Deserialize};
 
-use torustiq_common::ffi::module::Module;
+use torustiq_common::ffi;
+use torustiq_common::types::module::ModuleInfo;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 struct PipelineStep {
@@ -42,26 +44,33 @@ fn main() -> Result<(), Box<dyn Error>> {
         Ok(c) => c,
         Err(e) => return err(format!("Cannot open the pipeline file: '{}'. {}", args.pipeline_file, e)),
     };
-    let _pipeline_cfg: PipelineDefinition = match serde_yaml::from_str(pipeline_cfg.as_str()) {
+    let pipeline_cfg: PipelineDefinition = match serde_yaml::from_str(pipeline_cfg.as_str()) {
         Ok(c) => c,
         Err(e) => return err(format!("Cannot parse the pipeline: '{}'. {}", args.pipeline_file, e)),
     };
+    let required_module_ids: Vec<String> = pipeline_cfg.steps
+        .iter()
+        .map(|step| step.handler.clone())
+        .collect();
 
     for entry in fs::read_dir(args.module_dir)? {
         let entry = entry?;
         let path = entry.path();
 
+        let mut module_mapping: HashMap<String, String> = HashMap::new(); // key: module ref ID, value: path to module
         unsafe {
             let lib = libloading::Library::new(&path)?;
-            let func: libloading::Symbol<unsafe extern fn() -> Module> = lib.get(b"load")?;
-            let module = func();
-
-            let module_name: &CStr = CStr::from_ptr(module.name);
-            let module_name: &str = module_name.to_str().unwrap();
-            let module_ref_id: &CStr = CStr::from_ptr(module.ref_id);
-            let module_ref_id: &str = module_ref_id.to_str().unwrap();
-
-            debug!("Module loaded: {} (ref_id: {}, path: {})", module_name, module_ref_id, path.into_os_string().into_string().unwrap());
+            let func: libloading::Symbol<unsafe extern fn() -> ffi::types::module::ModuleInfo> = lib.get(b"get_info")?;
+            let module: ModuleInfo = func().into();
+            let path_str = path.into_os_string().into_string().unwrap();
+            
+            debug!("Module info received: {} (ref_id: {}, path: {})", module.name, module.ref_id, path_str);
+            if required_module_ids.contains(&module.ref_id) {
+                debug!("Added module '{}' to loading list as it is referred in the pipeline definition", module.ref_id);
+                module_mapping.insert(module.ref_id.clone(), path_str.clone());
+            } else {
+                debug!("Skipped module '{}' from loading as it is not referred in the pipeline definition", module.ref_id);
+            }
         }
     }
 
