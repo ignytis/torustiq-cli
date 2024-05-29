@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::{env, error::Error, fs, io, str};
 
 use clap::{arg, command, Parser};
+use libloading::Library;
 use log::debug;
 use serde::{Serialize, Deserialize};
 
@@ -57,7 +58,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let entry = entry?;
         let path = entry.path();
 
-        let mut module_mapping: HashMap<String, String> = HashMap::new(); // key: module ref ID, value: path to module
+        // TODO: insead of saving the handle, we can initialize a module straight away
+        let mut module_mapping: HashMap<String, Library> = HashMap::new(); // key: module ref ID, value: library handle
         unsafe {
             let lib = libloading::Library::new(&path)?;
             let func: libloading::Symbol<unsafe extern fn() -> ffi::types::module::ModuleInfo> = lib.get(b"get_info")?;
@@ -67,7 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             debug!("Module info received: {} (ref_id: {}, path: {})", module.name, module.ref_id, path_str);
             if required_module_ids.contains(&module.ref_id) {
                 debug!("Added module '{}' to loading list as it is referred in the pipeline definition", module.ref_id);
-                module_mapping.insert(module.ref_id.clone(), path_str.clone());
+                module_mapping.insert(module.ref_id.clone(), lib);
             } else {
                 debug!("Skipped module '{}' from loading as it is not referred in the pipeline definition", module.ref_id);
             }
