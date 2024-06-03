@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::{env, error::Error, fs, io, str};
+pub mod cli;
+pub mod pipeline;
 
-use clap::{arg, command, Parser};
+use std::{collections::HashMap, env, error::Error, fs, io};
+
 use log::debug;
-use serde::{Serialize, Deserialize};
 
 use torustiq_common::ffi::{
     types::functions::{GetIdFn, LoadFn},
@@ -11,37 +11,16 @@ use torustiq_common::ffi::{
 };
 use torustiq_common::types::module::Module;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct PipelineStep {
-    name: String,
-    handler: String,
-}
+use crate::cli::CliArgs;
+use crate::pipeline::PipelineDefinition;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct PipelineDefinition {
-    steps: Vec<PipelineStep>,
-}
-
-/// Starts a data processing pipeline from provided config
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// A YAML file to read the pipeline structure from
-    #[arg(short, long, default_value="pipeline.yaml")]
-    pipeline_file: String,
-
-    /// A YAML file to read the pipeline structure from
-    #[arg(short, long, default_value="modules")]
-    module_dir: String,
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info")
     }
     env_logger::init();
-
-    let args = Args::parse();
+    let args = CliArgs::do_parse();
 
     let pipeline_def: String = match fs::read_to_string(&args.pipeline_file) {
         Ok(c) => c,
@@ -72,28 +51,36 @@ fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Resul
         let path = entry.path();
         let path_str = path.clone().into_os_string().into_string().unwrap();
 
-        // TODO: insead of saving the handle, we can initialize a module straight away
-        // let mut module_mapping: HashMap<String, Library> = HashMap::new(); // key: module ref ID, value: library handle
         unsafe {
             let lib = libloading::Library::new(&path)?;
             let get_id_fn: libloading::Symbol<GetIdFn> = lib.get(b"get_id")?;
             let module_id = cchar_to_string(get_id_fn());
             debug!("Module at path {} identified: {}", path_str, module_id);
-            if required_module_ids.contains(&module_id) {
-                debug!("Loading module '{}'...", module_id);
-                let load_fn: libloading::Symbol<LoadFn> = lib.get(b"load")?;
-                let module: Module = load_fn().into();
-
-                modules.insert(module_id.clone(), module);
-            } else {
+            if !required_module_ids.contains(&module_id) {
                 debug!("Skipped module '{}' because it doesn't exist in the pipeline", module_id);
+                continue
             }
+            debug!("Loading module '{}'...", module_id);
+            let load_fn: libloading::Symbol<LoadFn> = lib.get(b"load")?;
+            let module: Module = load_fn().into();
+            modules.insert(module_id.clone(), module);
         }
+    }
+    let loaded_module_ids: Vec<String> = modules.keys().cloned().collect();
+    let missing_module_ids: Vec<String> = required_module_ids
+        .into_iter()
+        .filter(|item| !loaded_module_ids.contains(item))
+        .collect();
+    if missing_module_ids.len() > 0 {
+        for m in &missing_module_ids {
+            log::error!("An unknown module is detected in pipeline: {}", m);
+        }
+        return err(format!("Failed to load modules: {}", missing_module_ids.join(", ")))
     }
 
     Ok(modules)
 }
 
-fn err(message: String) -> Result<(), Box<dyn Error>> {
+fn err<T>(message: String) -> Result<T, Box<dyn Error>> {
     Err(Box::new(io::Error::new(io::ErrorKind::Other, message)))
 }

@@ -1,0 +1,5 @@
+steps:
+- name: HTTP Source
+  handler: source_http
+- name: Stdout Destination
+  handler: destination_stdout
