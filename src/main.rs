@@ -12,7 +12,7 @@ use torustiq_common::ffi::{
 use torustiq_common::types::module::Module;
 
 use crate::cli::CliArgs;
-use crate::pipeline::PipelineDefinition;
+use crate::pipeline::{Pipeline, PipelineDefinition};
 
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -32,9 +32,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let modules = load_modules(&args.module_dir, &pipeline_def)?;
-    for (module_id, _module) in &modules {
-        debug!("Module: {}", module_id)
-    }
+    debug!("All modules are loaded");
+
+    let pipeline = match Pipeline::build(&pipeline_def, &modules) {
+        Ok(p) => p,
+        Err(msg) => return err(msg),
+    };
+    debug!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
 
     Ok(())
 }
