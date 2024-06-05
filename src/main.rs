@@ -5,6 +5,8 @@ use std::{collections::HashMap, env, error::Error, fs, io};
 
 use log::debug;
 
+use libloading::{Library, Symbol};
+
 use torustiq_common::ffi::{
     types::functions::{GetIdFn, LoadFn},
     utils::strings::cchar_to_string,
@@ -31,7 +33,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         Err(e) => return err(format!("Cannot parse the pipeline: '{}'. {}", args.pipeline_file, e)),
     };
 
-    let modules = load_modules(&args.module_dir, &pipeline_def)?;
+    // _libraries is needed to keep libraries loaded into memory
+    let (modules, _libraries) = load_modules(&args.module_dir, &pipeline_def)?;
     debug!("All modules are loaded");
 
     let pipeline = match Pipeline::build(&pipeline_def, &modules) {
@@ -40,11 +43,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     debug!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
 
+    debug!("Initialization of steps...");
+    for step in pipeline.steps {
+        (step.init)();
+    }
+
     Ok(())
 }
 
-fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<HashMap<String, Module>, Box<dyn Error>> {
+fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<(HashMap<String, Module>, Vec<Library>), Box<dyn Error>> {
     let mut modules: HashMap<String, Module> = HashMap::new();
+    let mut libraries: Vec<Library> = Vec::new();
     let required_module_ids: Vec<String> = pipeline_def.steps
         .iter()
         .map(|step| step.handler.clone())
@@ -56,8 +65,8 @@ fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Resul
         let path_str = path.clone().into_os_string().into_string().unwrap();
 
         unsafe {
-            let lib = libloading::Library::new(&path)?;
-            let get_id_fn: libloading::Symbol<GetIdFn> = lib.get(b"get_id")?;
+            let lib = Library::new(&path)?;
+            let get_id_fn: Symbol<GetIdFn> = lib.get(b"get_id")?;
             let module_id = cchar_to_string(get_id_fn());
             debug!("Module at path {} identified: {}", path_str, module_id);
             if !required_module_ids.contains(&module_id) {
@@ -65,11 +74,13 @@ fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Resul
                 continue
             }
             debug!("Loading module '{}'...", module_id);
-            let load_fn: libloading::Symbol<LoadFn> = lib.get(b"load")?;
+            let load_fn: Symbol<LoadFn> = lib.get(b"load")?;
             let module: Module = load_fn().into();
             modules.insert(module_id.clone(), module);
+            libraries.push(lib);
         }
     }
+
     let loaded_module_ids: Vec<String> = modules.keys().cloned().collect();
     let missing_module_ids: Vec<String> = required_module_ids
         .into_iter()
@@ -82,7 +93,7 @@ fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Resul
         return err(format!("Failed to load modules: {}", missing_module_ids.join(", ")))
     }
 
-    Ok(modules)
+    Ok((modules, libraries))
 }
 
 fn err<T>(message: String) -> Result<T, Box<dyn Error>> {

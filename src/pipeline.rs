@@ -69,15 +69,6 @@ impl Pipeline {
                 return Err(format!("Kinds of data mismatch between steps {} and {}: {:?} vs {:?}", i+1, i+2, step_output.output_kind, step_input.input_kind))
             }
         }
-        // for x in &definition.steps {
-        //     let module = modules.get(&x.name).unwrap().clone();
-        //     pipeline.steps.push(module);
-        // }
-        // pipeline.steps = definition.steps.iter().map(|v| modules.get(&v.name).unwrap().clone()).collect();
-
-        // TODO: pipeline validation:
-        // Input (source) and output (destination) kinds are External
-        // Between stages: the same data type (stream or batch)
         Ok(pipeline)
     }
 }
