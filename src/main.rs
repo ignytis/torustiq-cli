@@ -1,27 +1,38 @@
 pub mod cli;
 pub mod pipeline;
 
-use std::{collections::HashMap, env, error::Error, fs, io};
+use std::{collections::HashMap, env, error::Error, fs, io, thread, time};
 
-use log::debug;
-
+use log::{debug, info};
 use libloading::{Library, Symbol};
 
-use torustiq_common::ffi::{
-    types::functions::{GetIdFn, LoadFn},
-    utils::strings::cchar_to_string,
+use torustiq_common::{
+    ffi::{
+        types::functions::{GetIdFn, LoadFn},
+        utils::strings::cchar_to_string,
+    },
+    types::module::Module,
 };
-use torustiq_common::types::module::Module;
 
-use crate::cli::CliArgs;
-use crate::pipeline::{Pipeline, PipelineDefinition};
+use crate::{
+    cli::CliArgs,
+    pipeline::{Pipeline, PipelineDefinition}
+};
 
+static mut TODO_TERMINATE: bool = false;
+
+extern "C" fn on_terminate() {
+    unsafe {
+        TODO_TERMINATE = true;
+    }
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info")
     }
     env_logger::init();
+    info!("Starting the application...");
     let args = CliArgs::do_parse();
 
     let pipeline_def: String = match fs::read_to_string(&args.pipeline_file) {
@@ -35,19 +46,28 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // _libraries is needed to keep libraries loaded into memory
     let (modules, _libraries) = load_modules(&args.module_dir, &pipeline_def)?;
-    debug!("All modules are loaded");
+    info!("All modules are loaded");
 
     let pipeline = match Pipeline::build(&pipeline_def, &modules) {
         Ok(p) => p,
         Err(msg) => return err(msg),
     };
-    debug!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
+    info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
 
-    debug!("Initialization of steps...");
+    info!("Initialization of steps...");
     for step in pipeline.steps {
-        (step.init)();
+        // (step.init)(on_terminate);
+        (step.init)(on_terminate);
     }
 
+    unsafe {
+        while !TODO_TERMINATE {
+            thread::sleep(time::Duration::from_millis(10));
+        }
+    }
+    debug!("Exited from main loop");
+
+    info!("Application terminated.");
     Ok(())
 }
 
