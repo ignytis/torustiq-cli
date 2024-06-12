@@ -2,7 +2,7 @@ use std::{collections::HashMap, str};
 
 use serde::{Serialize, Deserialize};
 
-use torustiq_common::types::module::{IoKind, Module};
+use torustiq_common::ffi::types::module::{IoKind, Module};
 
 /// A step in pipeline: source, destination, transformation, etc
 #[derive(Serialize, Deserialize, PartialEq, Debug)]

@@ -6,13 +6,15 @@ use std::{collections::HashMap, env, error::Error, fs, io, thread, time};
 use log::{debug, info};
 use libloading::{Library, Symbol};
 
-use torustiq_common::{
-    ffi::{
-        types::functions::{GetIdFn, LoadFn},
+use torustiq_common::ffi::{
+        types::{
+            functions::{GetIdFn, LoadFn},
+            module::{
+                Module, ModuleInitArgs
+            },
+        },
         utils::strings::cchar_to_string,
-    },
-    types::module::Module,
-};
+    };
 
 use crate::{
     cli::CliArgs,
@@ -56,8 +58,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Initialization of steps...");
     for step in pipeline.steps {
-        // (step.init)(on_terminate);
-        (step.init)(on_terminate);
+        (step.init)(ModuleInitArgs{
+            termination_handler: on_terminate,
+        });
     }
 
     unsafe {
