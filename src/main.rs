@@ -1,16 +1,18 @@
 pub mod cli;
+pub mod module;
 pub mod pipeline;
 
-use std::{collections::HashMap, env, error::Error, fs, io, thread, time};
+use std::{collections::HashMap, env, error::Error, fs, io, rc::Rc, thread, time};
 
 use log::{debug, info};
 use libloading::{Library, Symbol};
 
+use module::Module;
 use torustiq_common::ffi::{
         types::{
-            functions::{GetIdFn, LoadFn},
+            functions::{ModuleGetInfoFn},
             module::{
-                Module, ModuleInitArgs
+                ModuleInfo, ModuleInitStepArgs
             },
         },
         utils::strings::cchar_to_string,
@@ -47,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     // _libraries is needed to keep libraries loaded into memory
-    let (modules, _libraries) = load_modules(&args.module_dir, &pipeline_def)?;
+    let modules = load_modules(&args.module_dir, &pipeline_def)?;
     info!("All modules are loaded");
 
     let pipeline = match Pipeline::build(&pipeline_def, &modules) {
@@ -57,11 +59,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
 
     info!("Initialization of steps...");
-    for step in pipeline.steps {
-        (step.init)(ModuleInitArgs{
-            termination_handler: on_terminate,
-        });
-    }
+    // for step in pipeline.steps {
+    //     (step.init)(ModuleInitStepArgs{
+    //         termination_handler: on_terminate,
+    //     });
+    // }
 
     unsafe {
         while !TODO_TERMINATE {
@@ -74,9 +76,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<(HashMap<String, Module>, Vec<Library>), Box<dyn Error>> {
-    let mut modules: HashMap<String, Module> = HashMap::new();
-    let mut libraries: Vec<Library> = Vec::new();
+fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<HashMap<String, Rc<Module>>, Box<dyn Error>> {
+    let mut modules: HashMap<String, Rc<Module>> = HashMap::new();
+    // let mut libraries: Vec<Library> = Vec::new();
     let required_module_ids: Vec<String> = pipeline_def.steps
         .iter()
         .map(|step| step.handler.clone())
@@ -89,18 +91,20 @@ fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Resul
 
         unsafe {
             let lib = Library::new(&path)?;
-            let get_id_fn: Symbol<GetIdFn> = lib.get(b"get_id")?;
-            let module_id = cchar_to_string(get_id_fn());
+            let torustiq_module_get_info: Symbol<ModuleGetInfoFn> = lib.get(b"torustiq_module_get_info")?;
+            let module_info = torustiq_module_get_info();
+            let module_id = cchar_to_string(module_info.id);
             debug!("Module at path {} identified: {}", path_str, module_id);
             if !required_module_ids.contains(&module_id) {
                 debug!("Skipped module '{}' because it doesn't exist in the pipeline", module_id);
                 continue
             }
-            debug!("Loading module '{}'...", module_id);
-            let load_fn: Symbol<LoadFn> = lib.get(b"load")?;
-            let module: Module = load_fn().into();
-            modules.insert(module_id.clone(), module);
-            libraries.push(lib);
+
+            // let load_fn: Symbol<LoadFn> = lib.get(b"load")?;
+            // let module: Module = load_fn().into();
+            // modules.insert(module_id.clone(), module);
+            modules.insert(module_id.clone(), Rc::from(Module::from_library(lib)?));
+            debug!("Module '{}'is loaded.", module_id);
         }
     }
 
@@ -116,7 +120,7 @@ fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Resul
         return err(format!("Failed to load modules: {}", missing_module_ids.join(", ")))
     }
 
-    Ok((modules, libraries))
+    Ok(modules)
 }
 
 fn err<T>(message: String) -> Result<T, Box<dyn Error>> {
