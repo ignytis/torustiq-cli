@@ -99,11 +99,8 @@ fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Resul
                 continue
             }
 
-            // let load_fn: Symbol<LoadFn> = lib.get(b"load")?;
-            // let module: Module = load_fn().into();
-            // modules.insert(module_id.clone(), module);
             modules.insert(module_id.clone(), Rc::from(Module::from_library(lib)?));
-            debug!("Module '{}'is loaded.", module_id);
+            debug!("Module '{}' is loaded.", module_id);
         }
     }
 
