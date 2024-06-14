@@ -2,21 +2,22 @@ pub mod cli;
 pub mod module;
 pub mod pipeline;
 
-use std::{collections::HashMap, env, error::Error, fs, io, rc::Rc, thread, time};
+use std::{collections::HashMap, error::Error, fs, io, rc::Rc, thread, time};
 
 use log::{debug, info};
 use libloading::{Library, Symbol};
 
 use module::Module;
-use torustiq_common::ffi::{
+use torustiq_common::{
+    logging::init_logger,
+    ffi::{
         types::{
-            functions::{ModuleGetInfoFn},
-            module::{
-                ModuleInfo, ModuleInitStepArgs
-            },
+            functions::ModuleGetInfoFn,
+            module::ModuleInitStepArgs,
         },
         utils::strings::cchar_to_string,
-    };
+    }
+};
 
 use crate::{
     cli::CliArgs,
@@ -32,10 +33,7 @@ extern "C" fn on_terminate() {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info")
-    }
-    env_logger::init();
+    init_logger();
     info!("Starting the application...");
     let args = CliArgs::do_parse();
 
@@ -58,12 +56,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
 
+    // Initialization of steps: opens files or DB connections, starts listening sockets, etc
     info!("Initialization of steps...");
-    // for step in pipeline.steps {
-    //     (step.init)(ModuleInitStepArgs{
-    //         termination_handler: on_terminate,
-    //     });
-    // }
+    for step in pipeline.steps {
+        step.module.init_step(ModuleInitStepArgs{
+            termination_handler: on_terminate,
+        })?;
+    }
 
     unsafe {
         while !TODO_TERMINATE {

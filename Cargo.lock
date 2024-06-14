@@ -311,7 +311,6 @@ name = "torustiq-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
- "env_logger",
  "libloading",
  "log",
  "serde",
@@ -322,6 +321,10 @@ dependencies = [
 [[package]]
 name = "torustiq-common"
 version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "log",
+]
 
 [[package]]
 name = "unicode-ident"
