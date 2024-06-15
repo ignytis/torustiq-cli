@@ -2,6 +2,11 @@ use std::error::Error;
 
 use libloading::{Library, Symbol};
 
+#[cfg(unix)]
+use libloading::os::unix::Symbol as RawSymbol;
+#[cfg(windows)]
+use libloading::os::windows::Symbol as RawSymbol;
+
 use torustiq_common::ffi::{
     types::{
         functions::{ModuleGetInfoFn, ModuleInitStepFn},
@@ -10,8 +15,10 @@ use torustiq_common::ffi::{
 
 pub struct Module {
     /// A library handle needs to be stored in order to keep the imported functions available
-    lib: Library,
+    _lib: Library,
     pub module_info: ModuleInfo,
+
+    init_step_ptr: RawSymbol<ModuleInitStepFn>,
 }
 
 pub struct ModuleInfo {
@@ -40,9 +47,13 @@ impl Module {
                 torustiq_module_get_info()
             }.into();
 
+            let init_step_ptr = lib.get::<ModuleInitStepFn>(b"torustiq_module_init_step")?.into_raw();
+
             Module {
-                lib,
+                _lib: lib,
                 module_info,
+
+                init_step_ptr,
             }
         };
 
@@ -51,8 +62,7 @@ impl Module {
 
     pub fn init_step(&self, args: ModuleInitStepArgs) -> Result<(), Box<dyn Error>>  {
         unsafe {
-            let init_step_fn: Symbol<ModuleInitStepFn> = self.lib.get(b"torustiq_module_init_step")?;
-            init_step_fn(args);
+            (self.init_step_ptr)(args);
         }
         Ok(())
     }
