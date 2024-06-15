@@ -2,21 +2,23 @@ pub mod cli;
 pub mod module;
 pub mod pipeline;
 
-use std::{collections::HashMap, error::Error, fs, io, rc::Rc, thread, time};
+use std::{
+    collections::HashMap,
+    convert::TryFrom,
+    error::Error, fs, io, rc::Rc, thread, time};
 
 use log::{debug, info};
 use libloading::{Library, Symbol};
 
 use module::Module;
 use torustiq_common::{
-    logging::init_logger,
     ffi::{
         types::{
             functions::ModuleGetInfoFn,
-            module::ModuleInitStepArgs,
+            module::ModuleInitStepArgs, std_types,
         },
         utils::strings::cchar_to_string,
-    }
+    }, logging::init_logger
 };
 
 use crate::{
@@ -26,7 +28,8 @@ use crate::{
 
 static mut TODO_TERMINATE: bool = false;
 
-extern "C" fn on_terminate() {
+extern "C" fn on_terminate(step_handle: std_types::Uint) {
+    info!("Received a termination signal from step with index {}", step_handle);
     unsafe {
         TODO_TERMINATE = true;
     }
@@ -58,8 +61,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Initialization of steps: opens files or DB connections, starts listening sockets, etc
     info!("Initialization of steps...");
-    for step in pipeline.steps {
+    for (step_index, step) in pipeline.steps.iter().enumerate() {
         step.module.init_step(ModuleInitStepArgs{
+            step_handle: std_types::Uint::try_from(step_index).unwrap(),
             termination_handler: on_terminate,
         })?;
     }

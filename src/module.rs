@@ -61,9 +61,7 @@ impl Module {
     }
 
     pub fn init_step(&self, args: ModuleInitStepArgs) -> Result<(), Box<dyn Error>>  {
-        unsafe {
-            (self.init_step_ptr)(args);
-        }
+        (self.init_step_ptr)(args);
         Ok(())
     }
 }
