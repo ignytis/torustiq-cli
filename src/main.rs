@@ -10,7 +10,6 @@ use std::{
 use log::{debug, info};
 use libloading::{Library, Symbol};
 
-use module::Module;
 use torustiq_common::{
     ffi::{
         types::{
@@ -23,6 +22,7 @@ use torustiq_common::{
 
 use crate::{
     cli::CliArgs,
+    module::Module,
     pipeline::{Pipeline, PipelineDefinition}
 };
 
@@ -33,6 +33,11 @@ extern "C" fn on_terminate(step_handle: std_types::Uint) {
     unsafe {
         TODO_TERMINATE = true;
     }
+}
+
+extern "C" fn on_rcv(payload: std_types::ConstCharPtr) {
+    let p = cchar_to_string(payload);
+    info!("Got payload: {}", p);
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -49,7 +54,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         Err(e) => return err(format!("Cannot parse the pipeline: '{}'. {}", args.pipeline_file, e)),
     };
 
-    // _libraries is needed to keep libraries loaded into memory
     let modules = load_modules(&args.module_dir, &pipeline_def)?;
     info!("All modules are loaded");
 
@@ -65,6 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         step.module.init_step(ModuleInitStepArgs{
             step_handle: std_types::Uint::try_from(step_index).unwrap(),
             termination_handler: on_terminate,
+            on_data_received_fn: on_rcv,
         })?;
     }
 
