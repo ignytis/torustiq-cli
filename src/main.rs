@@ -14,7 +14,7 @@ use torustiq_common::{
     ffi::{
         types::{
             functions::ModuleGetInfoFn,
-            module::ModuleInitStepArgs, std_types,
+            module::{ModuleInitStepArgs, Record}, std_types,
         },
         utils::strings::cchar_to_string,
     }, logging::init_logger
@@ -35,8 +35,8 @@ extern "C" fn on_terminate(step_handle: std_types::Uint) {
     }
 }
 
-extern "C" fn on_rcv(payload: std_types::ConstCharPtr) {
-    let p = cchar_to_string(payload);
+extern "C" fn on_rcv(record: Record) {
+    let p = cchar_to_string(record.content.get_bytes_as_const_ptr());
     info!("Got payload: {}", p);
 }
 
