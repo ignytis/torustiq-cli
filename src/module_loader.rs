@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fs, rc::Rc};
+    fs, sync::Arc};
 
 use log::debug;
 use libloading::{Library, Symbol};
@@ -15,8 +15,8 @@ use crate::{
     pipeline::PipelineDefinition
 };
 
-pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> HashMap<String, Rc<Module>> {
-    let mut modules: HashMap<String, Rc<Module>> = HashMap::new();
+pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> HashMap<String, Arc<Module>> {
+    let mut modules: HashMap<String, Arc<Module>> = HashMap::new();
     // let mut libraries: Vec<Library> = Vec::new();
     let required_module_ids: Vec<String> = pipeline_def.steps
         .iter()
@@ -42,7 +42,7 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> H
             continue
         }
 
-        modules.insert(module_id.clone(), Rc::from(Module::from_library(lib)
+        modules.insert(module_id.clone(), Arc::from(Module::from_library(lib)
             .expect(format!("Failed to initialize a module from library '{}'", path_str).as_str())));
         debug!("Module '{}' is loaded.", module_id);
     }

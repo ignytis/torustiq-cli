@@ -9,8 +9,8 @@ use libloading::os::windows::Symbol as RawSymbol;
 
 use torustiq_common::ffi::{
     types::{
-        functions::{ModuleGetInfoFn, ModuleInitStepFn},
-        module::{IoKind, ModuleInfo as FfiModuleInfo, ModuleInitStepArgs}},
+        functions::{ModuleGetInfoFn, ModuleInitStepFn, ModuleProcessRecordFn},
+        module::{IoKind, ModuleInfo as FfiModuleInfo, ModuleInitStepArgs, ModuleProcessRecordFnResult, Record}},
     utils::strings::cchar_to_string};
 
 pub struct Module {
@@ -19,6 +19,7 @@ pub struct Module {
     pub module_info: ModuleInfo,
 
     init_step_ptr: RawSymbol<ModuleInitStepFn>,
+    process_record_ptr: RawSymbol<ModuleProcessRecordFn>,
 }
 
 pub struct ModuleInfo {
@@ -48,12 +49,14 @@ impl Module {
             }.into();
 
             let init_step_ptr = lib.get::<ModuleInitStepFn>(b"torustiq_module_init_step")?.into_raw();
+            let process_record_ptr = lib.get::<ModuleProcessRecordFn>(b"torustiq_module_process_record")?.into_raw();
 
             Module {
                 _lib: lib,
                 module_info,
 
                 init_step_ptr,
+                process_record_ptr,
             }
         };
 
@@ -61,6 +64,11 @@ impl Module {
     }
 
     pub fn init_step(&self, args: ModuleInitStepArgs) {
-        (self.init_step_ptr)(args);
+        (self.init_step_ptr)(args)
+    }
+
+    pub fn process_record(&self, input: Record) -> ModuleProcessRecordFnResult {
+        (self.process_record_ptr)(input)
+
     }
 }

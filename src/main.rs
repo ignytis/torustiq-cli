@@ -5,17 +5,15 @@ pub mod pipeline;
 
 use std::{
     convert::TryFrom,
-    fs, thread, time};
+    fs, sync::Mutex, thread, time};
 
-use log::{debug, info};
+use log::{debug, info, warn};
 
 use torustiq_common::{
-    ffi::{
-        types::{
-            module::{ModuleInitStepArgs, Record}, std_types,
+    ffi::types::{
+            module::{ModuleInitStepArgs, ModuleStepHandle, Record},
+            std_types,
         },
-        utils::strings::cchar_to_string,
-    },
     logging::init_logger
 };
 
@@ -27,6 +25,12 @@ use crate::{
 
 static mut TODO_TERMINATE: bool = false;
 
+use once_cell::sync::Lazy;
+
+static PIPELINE: Lazy<Mutex<Pipeline>> = Lazy::new(|| {
+    Mutex::new(Pipeline::new())
+});
+
 extern "C" fn on_terminate(step_handle: std_types::Uint) {
     info!("Received a termination signal from step with index {}", step_handle);
     unsafe {
@@ -34,9 +38,18 @@ extern "C" fn on_terminate(step_handle: std_types::Uint) {
     }
 }
 
-extern "C" fn on_rcv(record: Record) {
-    let p = cchar_to_string(record.content.get_bytes_as_const_ptr());
-    info!("Got payload: {}", p);
+extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
+    // Send data to the next module
+    let pipeline = PIPELINE.lock().unwrap();
+    let next_step_index: usize = ModuleStepHandle::try_into(step_handle + 1).unwrap();
+    let step = match pipeline.steps.get(next_step_index) {
+        Some(s) => s,
+        None => {
+            warn!("Cannot submit the record to step {}: out of range ({})", next_step_index, pipeline.steps.len());
+            return
+        }
+    };
+    step.module.process_record(record);
 }
 
 fn main() {
@@ -56,17 +69,20 @@ fn main() {
     let modules = load_modules(&args.module_dir, &pipeline_def);
     info!("All modules are loaded");
 
-    let pipeline =Pipeline::build(&pipeline_def, &modules);
-    info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
+    {
+        let mut pipeline = PIPELINE.lock().unwrap();
+        pipeline.build_steps(&pipeline_def, &modules);
+        info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
 
-    // Initialization of steps: opens files or DB connections, starts listening sockets, etc
-    info!("Initialization of steps...");
-    for (step_index, step) in pipeline.steps.iter().enumerate() {
-        step.module.init_step(ModuleInitStepArgs{
-            step_handle: std_types::Uint::try_from(step_index).unwrap(),
-            termination_handler: on_terminate,
-            on_data_received_fn: on_rcv,
-        });
+        // Initialization of steps: opens files or DB connections, starts listening sockets, etc
+        info!("Initialization of steps...");
+        for (step_index, step) in pipeline.steps.iter().enumerate() {
+            step.module.init_step(ModuleInitStepArgs{
+                step_handle: std_types::Uint::try_from(step_index).unwrap(),
+                termination_handler: on_terminate,
+                on_data_received_fn: on_rcv,
+            });
+        }
     }
 
     unsafe {

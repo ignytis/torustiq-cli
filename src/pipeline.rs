@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc, str};
+use std::{collections::HashMap, sync::Arc, str};
 
 use serde::{Serialize, Deserialize};
 
@@ -24,13 +24,13 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    fn new() -> Pipeline {
+    pub fn new() -> Pipeline {
         Pipeline {
             steps: Vec::new(),
         }
     }
 
-    pub fn build(definition: &PipelineDefinition, modules: &HashMap<String, Rc<Module>>) -> Pipeline {
+    pub fn build_steps(&mut self, definition: &PipelineDefinition, modules: &HashMap<String, Arc<Module>>) {
         // Validate references to modules
         for step_def in &definition.steps {
             if modules.get(&step_def.handler).is_none() {
@@ -38,16 +38,14 @@ impl Pipeline {
             }
         }
 
-        let mut pipeline = Pipeline::new();
-        pipeline.steps = definition
+        self.steps = definition
             .steps
             .iter()
             .enumerate()
             .map(|(step_index, step_def)| PipelineStep::from_module(modules.get(&step_def.handler).unwrap().clone(), step_index)  )
             .collect();
 
-        pipeline.validate();
-        pipeline
+        self.validate();
     }
 
     fn validate(&self) {
@@ -84,13 +82,13 @@ impl Pipeline {
 
 pub struct PipelineStep {
     pub id: String,
-    pub module: Rc<Module>,
+    pub module: Arc<Module>,
 }
 
 impl PipelineStep {
     /// Initializes a step from module (=dynamic library).
     /// Index is a step index in pipeline. Needed to format a unique step ID
-    pub fn from_module(module: Rc<Module>, index: usize) -> PipelineStep {
+    pub fn from_module(module: Arc<Module>, index: usize) -> PipelineStep {
         PipelineStep {
             id: format!("step_{}_{}", index, module.module_info.id),
             module,
