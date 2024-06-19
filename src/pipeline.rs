@@ -30,11 +30,11 @@ impl Pipeline {
         }
     }
 
-    pub fn build(definition: &PipelineDefinition, modules: &HashMap<String, Rc<Module>>) -> Result<Pipeline, String> {
+    pub fn build(definition: &PipelineDefinition, modules: &HashMap<String, Rc<Module>>) -> Pipeline {
         // Validate references to modules
         for step_def in &definition.steps {
             if modules.get(&step_def.handler).is_none() {
-                return Err(format!("Module not found: {}", &step_def.handler));
+                panic!("Module not found: {}", &step_def.handler);
             }
         }
 
@@ -46,27 +46,27 @@ impl Pipeline {
             .map(|(step_index, step_def)| PipelineStep::from_module(modules.get(&step_def.handler).unwrap().clone(), step_index)  )
             .collect();
 
-        pipeline.validate()?;
-        Ok(pipeline)
+        pipeline.validate();
+        pipeline
     }
 
-    fn validate(&self) -> Result<(), String> {
+    fn validate(&self) {
         // Validate: check if the first step has external (=user defined) input and the last step has external output
         // Internal input/outputs are passed between steps
         if let Some(s) = self.steps.first() {
             if s.module.module_info.input_kind != IoKind::External {
-                return Err(format!("Input of the first step is not 'external'. The first step must have an external input"))
+                panic!("Input of the first step is not 'external'. The first step must have an external input")
             }
         }
         if let Some(s) = self.steps.last() {
             if s.module.module_info.output_kind != IoKind::External {
-                return Err(format!("Output of the last step is not 'external'. The last step must have an external output"))
+                panic!("Output of the last step is not 'external'. The last step must have an external output")
             }
         }
 
         let steps_len = self.steps.len();
         if steps_len < 2 {
-            return Err(format!("Pipeline must have at least two steps. Teh actual number of steps: {}", steps_len))
+            panic!("Pipeline must have at least two steps. The actual number of steps: {}", steps_len)
         }
 
         for i in 0..self.steps.len()-1 {
@@ -75,12 +75,10 @@ impl Pipeline {
             let step_input = self.steps.get(i+1).unwrap();
 
             if step_output.module.module_info.output_kind != step_input.module.module_info.input_kind {
-                return Err(format!("Kinds of data mismatch between steps {} and {}: {:?} vs {:?}", i+1, i+2,
-                    step_output.module.module_info.output_kind, step_input.module.module_info.input_kind))
+                panic!("Kinds of data mismatch between steps {} and {}: {:?} vs {:?}", i+1, i+2,
+                    step_output.module.module_info.output_kind, step_input.module.module_info.input_kind)
             }
         }
-
-        Ok(())
     }
 }
 
