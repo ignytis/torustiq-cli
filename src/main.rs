@@ -5,7 +5,7 @@ pub mod pipeline;
 
 use std::{
     convert::TryFrom,
-    error::Error, fs, thread, time};
+    fs, thread, time};
 
 use log::{debug, info};
 
@@ -15,7 +15,8 @@ use torustiq_common::{
             module::{ModuleInitStepArgs, Record}, std_types,
         },
         utils::strings::cchar_to_string,
-    }, logging::init_logger
+    },
+    logging::init_logger
 };
 
 use crate::{
@@ -38,7 +39,7 @@ extern "C" fn on_rcv(record: Record) {
     info!("Got payload: {}", p);
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     init_logger();
     info!("Starting the application...");
     let args = CliArgs::do_parse();
@@ -52,7 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Err(e) => panic!("Cannot parse the pipeline: '{}'. {}", args.pipeline_file, e),
     };
 
-    let modules = load_modules(&args.module_dir, &pipeline_def)?;
+    let modules = load_modules(&args.module_dir, &pipeline_def);
     info!("All modules are loaded");
 
     let pipeline =Pipeline::build(&pipeline_def, &modules);
@@ -65,7 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             step_handle: std_types::Uint::try_from(step_index).unwrap(),
             termination_handler: on_terminate,
             on_data_received_fn: on_rcv,
-        })?;
+        });
     }
 
     unsafe {
@@ -76,5 +77,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     debug!("Exited from main loop");
 
     info!("Application terminated.");
-    Ok(())
 }

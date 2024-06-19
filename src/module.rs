@@ -60,8 +60,7 @@ impl Module {
         Ok(module)
     }
 
-    pub fn init_step(&self, args: ModuleInitStepArgs) -> Result<(), Box<dyn Error>>  {
+    pub fn init_step(&self, args: ModuleInitStepArgs) {
         (self.init_step_ptr)(args);
-        Ok(())
     }
 }

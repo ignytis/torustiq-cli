@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    error::Error, fs, rc::Rc};
+    fs, rc::Rc};
 
 use log::debug;
 use libloading::{Library, Symbol};
@@ -15,7 +15,7 @@ use crate::{
     pipeline::PipelineDefinition
 };
 
-pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<HashMap<String, Rc<Module>>, Box<dyn Error>> {
+pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> HashMap<String, Rc<Module>> {
     let mut modules: HashMap<String, Rc<Module>> = HashMap::new();
     // let mut libraries: Vec<Library> = Vec::new();
     let required_module_ids: Vec<String> = pipeline_def.steps
@@ -23,14 +23,16 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> R
         .map(|step| step.handler.clone())
         .collect();
 
-    for entry in fs::read_dir(module_dir)? {
-        let entry = entry?;
+    for entry in fs::read_dir(module_dir).expect(format!("Cannot open directory '{}'", module_dir).as_str()) {
+        let entry = entry.expect("Failed to load an entry");
         let path = entry.path();
         let path_str = path.clone().into_os_string().into_string().unwrap();
 
         let (module_info, lib) = unsafe {
-            let lib = Library::new(&path)?;
-            let torustiq_module_get_info: Symbol<ModuleGetInfoFn> = lib.get(b"torustiq_module_get_info")?;
+            let lib = Library::new(&path)
+                .expect(format!("Failed to load a library at path '{}'", path_str).as_str());
+            let torustiq_module_get_info: Symbol<ModuleGetInfoFn> = lib.get(b"torustiq_module_get_info")
+                .expect(format!("Failed to load function 'torustiq_module_get_info' from library '{}'", path_str).as_str());
             (torustiq_module_get_info(), lib)
         };
         let module_id = cchar_to_string(module_info.id);
@@ -40,7 +42,8 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> R
             continue
         }
 
-        modules.insert(module_id.clone(), Rc::from(Module::from_library(lib)?));
+        modules.insert(module_id.clone(), Rc::from(Module::from_library(lib)
+            .expect(format!("Failed to initialize a module from library '{}'", path_str).as_str())));
         debug!("Module '{}' is loaded.", module_id);
     }
 
@@ -56,5 +59,5 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> R
         panic!("Failed to load modules: {}", missing_module_ids.join(", "))
     }
 
-    Ok(modules)
+    modules
 }
