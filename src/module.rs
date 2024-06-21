@@ -19,7 +19,7 @@ pub struct Module {
     pub module_info: ModuleInfo,
 
     init_step_ptr: RawSymbol<ModuleInitStepFn>,
-    process_record_ptr: RawSymbol<ModuleProcessRecordFn>,
+    pub process_record_ptr: RawSymbol<ModuleProcessRecordFn>,
 }
 
 pub struct ModuleInfo {
@@ -67,8 +67,8 @@ impl Module {
         (self.init_step_ptr)(args)
     }
 
-    pub fn process_record(&self, input: Record) -> ModuleProcessRecordFnResult {
-        (self.process_record_ptr)(input)
-
+    pub fn process_record(&self, input: Record, step_handle: usize) -> ModuleProcessRecordFnResult {
+        let i = usize::try_into(step_handle).unwrap();
+        (self.process_record_ptr)(input, i)
     }
 }

@@ -4,10 +4,10 @@ pub mod module_loader;
 pub mod pipeline;
 
 use std::{
-    convert::TryFrom,
-    fs, sync::Mutex, thread, time};
+    collections::HashMap, convert::TryFrom, fs, sync::{mpsc::Sender, Mutex}, thread, time::{self, Duration}};
 
-use log::{debug, info, warn};
+use log::{debug, info};
+use once_cell::sync::Lazy;
 
 use torustiq_common::{
     ffi::types::{
@@ -25,10 +25,12 @@ use crate::{
 
 static mut TODO_TERMINATE: bool = false;
 
-use once_cell::sync::Lazy;
-
 static PIPELINE: Lazy<Mutex<Pipeline>> = Lazy::new(|| {
     Mutex::new(Pipeline::new())
+});
+
+static SENDERS: Lazy<Mutex<HashMap<ModuleStepHandle, Sender<Record>>>> = Lazy::new(|| {
+    Mutex::new(HashMap::new())
 });
 
 extern "C" fn on_terminate(step_handle: std_types::Uint) {
@@ -39,17 +41,12 @@ extern "C" fn on_terminate(step_handle: std_types::Uint) {
 }
 
 extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
-    // Send data to the next module
-    let pipeline = PIPELINE.lock().unwrap();
-    let next_step_index: usize = ModuleStepHandle::try_into(step_handle + 1).unwrap();
-    let step = match pipeline.steps.get(next_step_index) {
-        Some(s) => s,
-        None => {
-            warn!("Cannot submit the record to step {}: out of range ({})", next_step_index, pipeline.steps.len());
-            return
-        }
+    let sender = match SENDERS.lock().unwrap().get(&step_handle) {
+        Some(s) => s.clone(),
+        None => return,
     };
-    step.module.process_record(record);
+
+    sender.send(record).unwrap();
 }
 
 fn main() {
@@ -83,7 +80,33 @@ fn main() {
                 on_data_received_fn: on_rcv,
             });
         }
+
+        // Initialize senders and receivers
+        for i in 0..pipeline.steps.len() - 1 {
+            let i_sender = i;
+            let i_receiver = i_sender + 1;
+            let step_receiver = pipeline.steps.get(i_receiver).unwrap();
+
+            let i_sender_ffi = u32::try_from(i_sender).unwrap();
+            let i_receiver_ffi = u32::try_from(i_receiver).unwrap();
+
+            let process_record_ptr = step_receiver.module.process_record_ptr.clone();
+
+            let (tx, rx) = std::sync::mpsc::channel::<Record>();
+            SENDERS.lock().unwrap().insert(i_sender_ffi, tx);
+            thread::spawn(move|| {
+                let todo_terminate = unsafe{ TODO_TERMINATE };
+                while !todo_terminate {
+                    let record = match rx.recv_timeout(Duration::from_secs(1)) {
+                        Ok(r) => r,
+                        Err(_) => continue, // timeout
+                    };
+                    process_record_ptr(record, i_receiver_ffi);
+                }
+            });
+        }
     }
+    info!("Before main loop");
 
     unsafe {
         while !TODO_TERMINATE {
