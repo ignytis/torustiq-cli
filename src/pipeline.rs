@@ -30,22 +30,24 @@ impl Pipeline {
         }
     }
 
-    pub fn build_steps(&mut self, definition: &PipelineDefinition, modules: &HashMap<String, Arc<Module>>) {
+    pub fn from_definition(definition: &PipelineDefinition, modules: &HashMap<String, Arc<Module>>) -> Self {
         // Validate references to modules
+        let mut pipeline = Pipeline::new();
         for step_def in &definition.steps {
             if modules.get(&step_def.handler).is_none() {
                 panic!("Module not found: {}", &step_def.handler);
             }
         }
 
-        self.steps = definition
+        pipeline.steps = definition
             .steps
             .iter()
             .enumerate()
             .map(|(step_index, step_def)| PipelineStep::from_module(modules.get(&step_def.handler).unwrap().clone(), step_index)  )
             .collect();
+        pipeline.validate();
 
-        self.validate();
+        pipeline
     }
 
     fn validate(&self) {
