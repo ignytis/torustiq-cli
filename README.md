@@ -25,6 +25,7 @@ WIP; NOT production-ready. Currently I'm working on implementation of core featu
     - A pipeline definition YAML file
       - Need another pipeline to process? Just add a new YAML file
     - Installed system dependencies, if any
+  - One pipeline per process. It is NOT a pipeline orchestration system
 
 ## Roadmap
 
@@ -47,6 +48,7 @@ As the project is on the early stage, there are some problems in the code that I
 
 - Memory leaks. Memory is dynamically allocated to store input, output and intermediate results. The static garbage collector of Rust cannot cover those cases, because _unsafe_ code is used for cross-library communnication. Need to review the memory allocation logic and to add the manual de-allocation wherever it is needed
 - Error handling. The application "panics" if any error occurs, but in some cases errors should be ignored or just reported to error log
+- Some functions like `torustiq_module_step_set_param` are copypasted across modules. Could this be replaced with imported single module?
 
 ## TODO
 

@@ -11,6 +11,7 @@ use crate::module::Module;
 pub struct PipelineStepDefinition {
     pub name: String,
     pub handler: String,
+    pub args: Option<HashMap<String, String>>,
 }
 
 /// A pipeline definition. Contains multiple steps
@@ -43,7 +44,9 @@ impl Pipeline {
             .steps
             .iter()
             .enumerate()
-            .map(|(step_index, step_def)| PipelineStep::from_module(modules.get(&step_def.handler).unwrap().clone(), step_index)  )
+            .map(|(step_index, step_def)| PipelineStep::from_module(
+                modules.get(&step_def.handler).unwrap().clone(),
+                step_index, step_def.args.clone())  )
             .collect();
         pipeline.validate();
 
@@ -83,17 +86,21 @@ impl Pipeline {
 }
 
 pub struct PipelineStep {
+    pub handle: usize,
     pub id: String,
     pub module: Arc<Module>,
+    pub args: HashMap<String, String>,
 }
 
 impl PipelineStep {
     /// Initializes a step from module (=dynamic library).
     /// Index is a step index in pipeline. Needed to format a unique step ID
-    pub fn from_module(module: Arc<Module>, index: usize) -> PipelineStep {
+    pub fn from_module(module: Arc<Module>, handle: usize, args: Option<HashMap<String, String>>) -> PipelineStep {
         PipelineStep {
-            id: format!("step_{}_{}", index, module.module_info.id),
+            handle,
+            id: format!("step_{}_{}", handle, module.module_info.id),
             module,
+            args: args.unwrap_or(HashMap::new()),
         }
     }
 }

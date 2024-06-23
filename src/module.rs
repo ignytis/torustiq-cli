@@ -9,16 +9,18 @@ use libloading::os::windows::Symbol as RawSymbol;
 
 use torustiq_common::ffi::{
     types::{
-        functions::{ModuleGetInfoFn, ModuleInitStepFn, ModuleProcessRecordFn},
-        module::{IoKind, ModuleInfo as FfiModuleInfo, ModuleInitStepArgs, ModuleProcessRecordFnResult, Record}},
-    utils::strings::cchar_to_string};
+        functions::{ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepInitFn, ModuleStepSetParamFn},
+        module::{IoKind, ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepInitArgs, Record}},
+    utils::strings::{cchar_to_string, string_to_cchar}};
 
 pub struct Module {
     /// A library handle needs to be stored in order to keep the imported functions available
     _lib: Library,
     pub module_info: ModuleInfo,
 
-    init_step_ptr: RawSymbol<ModuleInitStepFn>,
+    init_ptr: RawSymbol<ModuleInitFn>,
+    step_init_ptr: RawSymbol<ModuleStepInitFn>,
+    step_set_param_ptr: RawSymbol<ModuleStepSetParamFn>,
     pub process_record_ptr: RawSymbol<ModuleProcessRecordFn>,
 }
 
@@ -48,14 +50,18 @@ impl Module {
                 torustiq_module_get_info()
             }.into();
 
-            let init_step_ptr = lib.get::<ModuleInitStepFn>(b"torustiq_module_init_step")?.into_raw();
+            let init_ptr = lib.get::<ModuleInitFn>(b"torustiq_module_init")?.into_raw();
+            let step_init_ptr = lib.get::<ModuleStepInitFn>(b"torustiq_module_step_init")?.into_raw();
+            let step_set_param_ptr = lib.get::<ModuleStepSetParamFn>(b"torustiq_module_step_set_param")?.into_raw();
             let process_record_ptr = lib.get::<ModuleProcessRecordFn>(b"torustiq_module_process_record")?.into_raw();
 
             Module {
                 _lib: lib,
                 module_info,
 
-                init_step_ptr,
+                init_ptr,
+                step_init_ptr,
+                step_set_param_ptr,
                 process_record_ptr,
             }
         };
@@ -63,8 +69,20 @@ impl Module {
         Ok(module)
     }
 
-    pub fn init_step(&self, args: ModuleInitStepArgs) {
-        (self.init_step_ptr)(args)
+    pub fn get_id(&self) -> String {
+        self.module_info.id.clone()
+    }
+
+    pub fn init(&self) {
+        (self.init_ptr)()
+    }
+
+    pub fn init_step(&self, args: ModuleStepInitArgs) {
+        (self.step_init_ptr)(args)
+    }
+
+    pub fn set_step_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
+        (self.step_set_param_ptr)(usize::try_into(handle).unwrap(), string_to_cchar(k), string_to_cchar(v));
     }
 
     pub fn process_record(&self, input: Record, step_handle: usize) -> ModuleProcessRecordFnResult {

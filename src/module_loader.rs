@@ -15,9 +15,9 @@ use crate::{
     pipeline::PipelineDefinition
 };
 
+/// Returns a HashMap of modules referenced in the pipeline definition
 pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> HashMap<String, Arc<Module>> {
     let mut modules: HashMap<String, Arc<Module>> = HashMap::new();
-    // let mut libraries: Vec<Library> = Vec::new();
     let required_module_ids: Vec<String> = pipeline_def.steps
         .iter()
         .map(|step| step.handler.clone())

@@ -16,7 +16,7 @@ use once_cell::sync::Lazy;
 
 use torustiq_common::{
     ffi::types::{
-            module::{ModuleInitStepArgs, ModuleStepHandle, Record},
+            module::{ModuleStepInitArgs, ModuleStepHandle, Record},
             std_types,
         },
     logging::init_logger
@@ -65,16 +65,24 @@ fn main() {
     };
 
     let modules = load_modules(&args.module_dir, &pipeline_def);
-    info!("All modules are loaded");
+    info!("All modules are loaded. Initialization of modules...");
+    for module in modules.values() {
+        debug!("Initializing module '{}'...", module.get_id());
+        module.init();
+    }
 
     let pipeline = Pipeline::from_definition(&pipeline_def, &modules);
     info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
 
     // Initialization of steps: opens files or DB connections, starts listening sockets, etc
     info!("Initialization of steps...");
-    for (step_index, step) in pipeline.steps.iter().enumerate() {
-        step.module.init_step(ModuleInitStepArgs{
-            step_handle: std_types::Uint::try_from(step_index).unwrap(),
+    for step in &pipeline.steps {
+        let step_handle = step.handle;
+        for (k, v) in &step.args { // set arguments for step
+            step.module.set_step_param(step_handle, k, v);
+        }
+        step.module.init_step(ModuleStepInitArgs{
+            step_handle: std_types::Uint::try_from(step_handle).unwrap(),
             termination_handler: on_terminate,
             on_data_received_fn: on_rcv,
         });
