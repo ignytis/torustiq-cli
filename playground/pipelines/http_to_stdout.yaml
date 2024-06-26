@@ -1,7 +1,0 @@
-steps:
-- name: HTTP Source
-  handler: source_http
-- name: Do some magic with Python
-  handler: transform_python
-- name: Stdout Destination
-  handler: destination_stdout
