@@ -21,7 +21,7 @@ WIP; NOT production-ready. Currently I'm working on implementation of core featu
     - NO servers (web UI, metrics, analytics, whatever), unless user adds them as modules
   - Ideally the working system is:
     - The application binary
-    - `3..n` library files: input, output and `n-2` transformations
+    - `2..n` library files: input, output and `n-2` transformations. No transformations is also possible e.g. for data dumps
     - A pipeline definition YAML file
       - Need another pipeline to process? Just add a new YAML file
     - Installed system dependencies, if any
