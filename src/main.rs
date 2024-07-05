@@ -16,7 +16,7 @@ use once_cell::sync::Lazy;
 
 use torustiq_common::{
     ffi::types::{
-            module::{ModuleStepInitArgs, ModuleStepHandle, Record},
+            module::{ModuleStepInitArgs, ModuleStepHandle, PipelineStepKind, Record},
             std_types,
         },
     logging::init_logger
@@ -76,16 +76,26 @@ fn main() {
 
     // Initialization of steps: opens files or DB connections, starts listening sockets, etc
     info!("Initialization of steps...");
-    for step in &pipeline.steps {
+    let last_step_index = pipeline.steps.len() - 1;
+    for (step_index, step) in pipeline.steps.iter().enumerate() {
         let step_handle = step.handle;
         for (k, v) in &step.args { // set arguments for step
             step.module.set_step_param(step_handle, k, v);
         }
-        step.module.init_step(ModuleStepInitArgs{
+        let init_args = ModuleStepInitArgs{
+            kind: if 0 == step_index { PipelineStepKind::Source }
+                else if last_step_index == step_index { PipelineStepKind::Destination }
+                else { PipelineStepKind::Transformation },
             step_handle: std_types::Uint::try_from(step_handle).unwrap(),
             termination_handler: on_terminate,
             on_data_received_fn: on_rcv,
-        });
+        };
+        match step.module.init_step(init_args) {
+            Ok(_) => {},
+            Err(msg) => {
+                panic!("Failed to load step {}: {}", step.id, msg)
+            }
+        }
     }
 
     // Initialize senders and receivers

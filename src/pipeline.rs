@@ -2,8 +2,6 @@ use std::{collections::HashMap, sync::Arc, str};
 
 use serde::{Serialize, Deserialize};
 
-use torustiq_common::ffi::types::module::IoKind;
-
 use crate::module::Module;
 
 /// A step in pipeline: source, destination, transformation, etc
@@ -53,34 +51,13 @@ impl Pipeline {
         pipeline
     }
 
+    /// Validates the pipeline
     fn validate(&self) {
-        // Validate: check if the first step has external (=user defined) input and the last step has external output
-        // Internal input/outputs are passed between steps
-        if let Some(s) = self.steps.first() {
-            if s.module.module_info.input_kind != IoKind::External {
-                panic!("Input of the first step is not 'external'. The first step must have an external input")
-            }
-        }
-        if let Some(s) = self.steps.last() {
-            if s.module.module_info.output_kind != IoKind::External {
-                panic!("Output of the last step is not 'external'. The last step must have an external output")
-            }
-        }
-
+        // There were more validation rules initially, but almost all of them is gone after
+        // the pipeline structure had been simplified
         let steps_len = self.steps.len();
         if steps_len < 2 {
             panic!("Pipeline must have at least two steps. The actual number of steps: {}", steps_len)
-        }
-
-        for i in 0..self.steps.len()-1 {
-            // output of step[n] is input of step[n+1]
-            let step_output = self.steps.get(i).unwrap();
-            let step_input = self.steps.get(i+1).unwrap();
-
-            if step_output.module.module_info.output_kind != step_input.module.module_info.input_kind {
-                panic!("Kinds of data mismatch between steps {} and {}: {:?} vs {:?}", i+1, i+2,
-                    step_output.module.module_info.output_kind, step_input.module.module_info.input_kind)
-            }
         }
     }
 }

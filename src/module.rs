@@ -10,7 +10,7 @@ use libloading::os::windows::Symbol as RawSymbol;
 use torustiq_common::ffi::{
     types::{
         functions::{ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepInitFn, ModuleStepSetParamFn},
-        module::{IoKind, ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepInitArgs, Record}},
+        module::{ModuleInfo as FfiModuleInfo, ModuleStepInitFnResult, ModuleProcessRecordFnResult, ModuleStepInitArgs, Record}},
     utils::strings::{cchar_to_string, string_to_cchar}};
 
 pub struct Module {
@@ -27,8 +27,6 @@ pub struct Module {
 pub struct ModuleInfo {
     pub id: String,
     pub name: String,
-    pub input_kind: IoKind,
-    pub output_kind: IoKind,
 }
 
 impl From<FfiModuleInfo> for ModuleInfo {
@@ -36,8 +34,6 @@ impl From<FfiModuleInfo> for ModuleInfo {
         ModuleInfo {
             id: cchar_to_string(value.id),
             name: cchar_to_string(value.name),
-            input_kind: value.input_kind,
-            output_kind: value.output_kind,
         }
     }
 }
@@ -77,8 +73,12 @@ impl Module {
         (self.init_ptr)()
     }
 
-    pub fn init_step(&self, args: ModuleStepInitArgs) {
-        (self.step_init_ptr)(args)
+    pub fn init_step(&self, args: ModuleStepInitArgs) -> Result<(), String> {
+        match (self.step_init_ptr)(args) {
+            ModuleStepInitFnResult::Ok => Ok(()),
+            ModuleStepInitFnResult::ErrorKindNotSupported => Err(String::from("The module cannot be used in this step")),
+            ModuleStepInitFnResult::ErrorMisc(e) => Err(cchar_to_string(e)),
+        }
     }
 
     pub fn set_step_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
