@@ -7,8 +7,9 @@ use std::{
     collections::HashMap, convert::TryFrom, fs,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
-        mpsc::Sender, Mutex},
-        thread, time::{self, Duration}
+        mpsc::Sender, Mutex
+    },
+    thread, time::{self, Duration}
     };
 
 use log::{debug, info};
