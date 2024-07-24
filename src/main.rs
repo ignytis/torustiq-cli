@@ -51,11 +51,8 @@ extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
     sender.send(record).unwrap();
 }
 
-fn main() {
-    init_logger();
-    info!("Starting the application...");
-    let args = CliArgs::do_parse();
-
+/// Creates a pipeline from pipeline definition file
+fn create_pipeline(args: &CliArgs) -> Pipeline {
     let pipeline_def: String = match fs::read_to_string(&args.pipeline_file) {
         Ok(c) => c,
         Err(e) => panic!("Cannot open the pipeline file: '{}'. {}", args.pipeline_file, e),
@@ -74,8 +71,11 @@ fn main() {
 
     let pipeline = Pipeline::from_definition(&pipeline_def, &modules);
     info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
+    pipeline
+}
 
-    // Initialization of steps: opens files or DB connections, starts listening sockets, etc
+/// Initialization of steps: opens files or DB connections, starts listening sockets, etc
+fn initialize_steps(pipeline: &Pipeline) {
     info!("Initialization of steps...");
     let last_step_index = pipeline.steps.len() - 1;
     for (step_index, step) in pipeline.steps.iter().enumerate() {
@@ -98,8 +98,10 @@ fn main() {
             }
         }
     }
+}
 
-    // Initialize senders and receivers
+/// Initialize senders and receivers
+fn start_senders_receivers(pipeline: &Pipeline) {
     for i in 0..pipeline.steps.len() - 1 {
         let i_sender = i;
         let i_receiver = i_sender + 1;
@@ -124,6 +126,17 @@ fn main() {
             PIPELINE_THREADS_COUNT.fetch_sub(1, Ordering::SeqCst);
         });
     }
+}
+
+fn main() {
+    init_logger();
+    info!("Starting the application...");
+
+    let args = CliArgs::do_parse();
+    let pipeline = create_pipeline(&args);
+    initialize_steps(&pipeline);
+    start_senders_receivers(&pipeline);
+
     while PIPELINE_THREADS_COUNT.load(Ordering::SeqCst) > 0 {
         thread::sleep(time::Duration::from_millis(100));
     }
