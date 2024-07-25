@@ -12,6 +12,7 @@ use std::{
     thread, time::{self, Duration}
     };
 
+use ctrlc;
 use log::{debug, info};
 use once_cell::sync::Lazy;
 
@@ -35,11 +36,15 @@ static SENDERS: Lazy<Mutex<HashMap<ModuleStepHandle, Sender<Record>>>> = Lazy::n
     Mutex::new(HashMap::new())
 });
 
-extern "C" fn on_terminate(step_handle: std_types::Uint) {
-    info!("Received a termination signal from step with index {}", step_handle);
+fn todo_terminate() {
     unsafe {
         TODO_TERMINATE.store(true, Ordering::SeqCst);
     }
+}
+
+extern "C" fn on_terminate(step_handle: std_types::Uint) {
+    info!("Received a termination signal from step with index {}", step_handle);
+    todo_terminate();
 }
 
 extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
@@ -49,6 +54,13 @@ extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
     };
 
     sender.send(record).unwrap();
+}
+
+fn init_signal_handler() {
+    ctrlc::set_handler(|| {
+        info!("Received a termination signal in main thread");
+        todo_terminate();
+    }).expect("Could not send signal on channel.");
 }
 
 /// Creates a pipeline from pipeline definition file
@@ -131,6 +143,7 @@ fn start_senders_receivers(pipeline: &Pipeline) {
 fn main() {
     init_logger();
     info!("Starting the application...");
+    init_signal_handler();
 
     let args = CliArgs::do_parse();
     let pipeline = create_pipeline(&args);
