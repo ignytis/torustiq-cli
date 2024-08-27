@@ -5,6 +5,7 @@ pub mod pipeline;
 
 use std::{
     collections::HashMap, convert::TryFrom, fs,
+    process::exit,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc::Sender, Mutex
@@ -13,7 +14,7 @@ use std::{
     };
 
 use ctrlc;
-use log::{debug, info};
+use log::{debug, error, info};
 use once_cell::sync::Lazy;
 
 use torustiq_common::{
@@ -87,7 +88,7 @@ fn create_pipeline(args: &CliArgs) -> Pipeline {
 }
 
 /// Initialization of steps: opens files or DB connections, starts listening sockets, etc
-fn initialize_steps(pipeline: &Pipeline) {
+fn initialize_steps(pipeline: &Pipeline) -> Result<(), String> {
     info!("Initialization of steps...");
     let last_step_index = pipeline.steps.len() - 1;
     for (step_index, step) in pipeline.steps.iter().enumerate() {
@@ -106,10 +107,11 @@ fn initialize_steps(pipeline: &Pipeline) {
         match step.module.init_step(init_args) {
             Ok(_) => {},
             Err(msg) => {
-                panic!("Failed to load step {}: {}", step.id, msg)
+                return Err(format!("Failed to load step {}: {}", step.id, msg));
             }
         }
     }
+    Ok(())
 }
 
 /// Initialize senders and receivers
@@ -147,7 +149,13 @@ fn main() {
 
     let args = CliArgs::do_parse();
     let pipeline = create_pipeline(&args);
-    initialize_steps(&pipeline);
+    match initialize_steps(&pipeline) {
+        Err(msg) => {
+            error!("Cannot initialize steps: {}", msg);
+            exit(-1);
+        },
+        _ => {},
+    };
     start_senders_receivers(&pipeline);
 
     while PIPELINE_THREADS_COUNT.load(Ordering::SeqCst) > 0 {

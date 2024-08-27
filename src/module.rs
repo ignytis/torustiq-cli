@@ -74,9 +74,14 @@ impl Module {
     }
 
     pub fn init_step(&self, args: ModuleStepInitArgs) -> Result<(), String> {
+        let step_handle = args.step_handle;
         match (self.step_init_ptr)(args) {
             ModuleStepInitFnResult::Ok => Ok(()),
             ModuleStepInitFnResult::ErrorKindNotSupported => Err(String::from("The module cannot be used in this step")),
+            ModuleStepInitFnResult::ErrorMultipleStepsNotSupported(existing_step_handle) =>
+                Err(format!("Cannot initialize step with handle {}: \
+                            the module supports only one instance of steps \
+                            and is already registered in step {}", step_handle, existing_step_handle)),
             ModuleStepInitFnResult::ErrorMisc(e) => Err(cchar_to_string(e)),
         }
     }
