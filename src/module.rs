@@ -9,9 +9,9 @@ use libloading::os::windows::Symbol as RawSymbol;
 
 use torustiq_common::ffi::{
     types::{
-        functions::{ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepInitFn, ModuleStepSetParamFn},
-        module::{ModuleInfo as FfiModuleInfo, ModuleStepInitFnResult, ModuleProcessRecordFnResult, ModuleStepInitArgs, Record}},
-    utils::strings::{cchar_to_string, string_to_cchar}};
+        functions::{ModuleFreeRecordFn, ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepInitFn, ModuleStepSetParamFn},
+        module::{ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepInitArgs, ModuleStepInitFnResult, Record}},
+    utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}};
 
 pub struct Module {
     /// A library handle needs to be stored in order to keep the imported functions available
@@ -22,6 +22,7 @@ pub struct Module {
     step_init_ptr: RawSymbol<ModuleStepInitFn>,
     step_set_param_ptr: RawSymbol<ModuleStepSetParamFn>,
     pub process_record_ptr: RawSymbol<ModuleProcessRecordFn>,
+    pub free_record_ptr: RawSymbol<ModuleFreeRecordFn>,
 }
 
 pub struct ModuleInfo {
@@ -50,6 +51,7 @@ impl Module {
             let step_init_ptr = lib.get::<ModuleStepInitFn>(b"torustiq_module_step_init")?.into_raw();
             let step_set_param_ptr = lib.get::<ModuleStepSetParamFn>(b"torustiq_module_step_set_param")?.into_raw();
             let process_record_ptr = lib.get::<ModuleProcessRecordFn>(b"torustiq_module_process_record")?.into_raw();
+            let free_record_ptr = lib.get::<ModuleFreeRecordFn>(b"torustiq_module_free_record")?.into_raw();
 
             Module {
                 _lib: lib,
@@ -59,6 +61,7 @@ impl Module {
                 step_init_ptr,
                 step_set_param_ptr,
                 process_record_ptr,
+                free_record_ptr,
             }
         };
 
@@ -87,11 +90,20 @@ impl Module {
     }
 
     pub fn set_step_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
-        (self.step_set_param_ptr)(usize::try_into(handle).unwrap(), string_to_cchar(k), string_to_cchar(v));
+        let k = string_to_cchar(k);
+        let v = string_to_cchar(v);
+        (self.step_set_param_ptr)(usize::try_into(handle).unwrap(), k, v);
+
+        cchar_const_deallocate(k);
+        cchar_const_deallocate(v);
     }
 
     pub fn process_record(&self, input: Record, step_handle: usize) -> ModuleProcessRecordFnResult {
         let i = usize::try_into(step_handle).unwrap();
         (self.process_record_ptr)(input, i)
+    }
+
+    pub fn free_record(&self, r: Record) {
+        (self.free_record_ptr)(r);
     }
 }

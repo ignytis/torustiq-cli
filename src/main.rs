@@ -19,8 +19,7 @@ use once_cell::sync::Lazy;
 
 use torustiq_common::{
     ffi::types::{
-            module::{ModuleStepInitArgs, ModuleStepHandle, PipelineStepKind, Record},
-            std_types,
+            functions::ModuleFreeRecordFn, module::{ModuleStepHandle, ModuleStepInitArgs, PipelineStepKind, Record}, std_types, traits::ShallowCopy
         },
     logging::init_logger
 };
@@ -36,6 +35,9 @@ static PIPELINE_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
 static SENDERS: Lazy<Mutex<HashMap<ModuleStepHandle, Sender<Record>>>> = Lazy::new(|| {
     Mutex::new(HashMap::new())
 });
+static FREE_BUF: Lazy<Mutex<HashMap<ModuleStepHandle, ModuleFreeRecordFn>>> = Lazy::new(|| {
+    Mutex::new(HashMap::new())
+});
 
 fn todo_terminate() {
     unsafe {
@@ -48,13 +50,18 @@ extern "C" fn on_terminate(step_handle: std_types::Uint) {
     todo_terminate();
 }
 
+/// Modules use this function to send a message
 extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
     let sender = match SENDERS.lock().unwrap().get(&step_handle) {
         Some(s) => s.clone(),
         None => return,
     };
 
-    sender.send(record).unwrap();
+    sender.send(record.shallow_copy()).unwrap();
+
+    let free_buf_fn_map = FREE_BUF.lock().unwrap();
+    let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
+    free_buf_fn(record);
 }
 
 fn init_signal_handler() {
@@ -119,6 +126,7 @@ fn start_senders_receivers(pipeline: &Pipeline) {
     for i in 0..pipeline.steps.len() - 1 {
         let i_sender = i;
         let i_receiver = i_sender + 1;
+        let step_sender = pipeline.steps.get(i_sender).unwrap();
         let step_receiver = pipeline.steps.get(i_receiver).unwrap();
 
         let i_sender_ffi = u32::try_from(i_sender).unwrap();
@@ -128,6 +136,8 @@ fn start_senders_receivers(pipeline: &Pipeline) {
 
         let (tx, rx) = std::sync::mpsc::channel::<Record>();
         SENDERS.lock().unwrap().insert(i_sender_ffi, tx);
+
+        FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.module.free_record_ptr.clone());
         PIPELINE_THREADS_COUNT.fetch_add(1, Ordering::SeqCst);
         thread::spawn(move|| {
             while unsafe { !TODO_TERMINATE.load(Ordering::SeqCst) } {
