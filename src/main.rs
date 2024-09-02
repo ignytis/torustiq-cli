@@ -58,10 +58,13 @@ extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
     };
 
     sender.send(record.shallow_copy()).unwrap();
-
-    let free_buf_fn_map = FREE_BUF.lock().unwrap();
-    let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
-    free_buf_fn(record);
+    // FIXME:
+    // Looks like deallocation corrupts the heap because output has random bytes printed.
+    // Perhaps need to wait for message processing is complete OR
+    // make a deep copy instead of shallow copy + deallocate it too
+    // let free_buf_fn_map = FREE_BUF.lock().unwrap();
+    // let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
+    // free_buf_fn(record);
 }
 
 fn init_signal_handler() {
