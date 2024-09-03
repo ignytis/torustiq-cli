@@ -18,9 +18,9 @@ use log::{debug, error, info};
 use once_cell::sync::Lazy;
 
 use torustiq_common::{
-    ffi::types::{
+    ffi::{shared::torustiq_module_free_record, types::{
             functions::ModuleFreeRecordFn, module::{ModuleStepHandle, ModuleStepInitArgs, PipelineStepKind, Record}, std_types, traits::ShallowCopy
-        },
+        }},
     logging::init_logger
 };
 
@@ -57,14 +57,10 @@ extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
         None => return,
     };
 
-    sender.send(record.shallow_copy()).unwrap();
-    // FIXME:
-    // Looks like deallocation corrupts the heap because output has random bytes printed.
-    // Perhaps need to wait for message processing is complete OR
-    // make a deep copy instead of shallow copy + deallocate it too
-    // let free_buf_fn_map = FREE_BUF.lock().unwrap();
-    // let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
-    // free_buf_fn(record);
+    sender.send(record.clone()).unwrap();
+    let free_buf_fn_map = FREE_BUF.lock().unwrap();
+    let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
+    free_buf_fn(record);
 }
 
 fn init_signal_handler() {
@@ -148,7 +144,9 @@ fn start_senders_receivers(pipeline: &Pipeline) {
                     Ok(r) => r,
                     Err(_) => continue, // timeout
                 };
+                let record_copy = record.shallow_copy();
                 process_record_ptr(record, i_receiver_ffi);
+                torustiq_module_free_record(record_copy);
             }
             PIPELINE_THREADS_COUNT.fetch_sub(1, Ordering::SeqCst);
         });
