@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use libloading::{Library, Symbol};
+use libloading::Library;
 
 #[cfg(unix)]
 use libloading::os::unix::Symbol as RawSymbol;
@@ -13,7 +13,7 @@ use torustiq_common::ffi::{
         module::{ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepInitArgs, ModuleStepInitFnResult, Record}},
     utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}};
 
-/// A helper structrure forr loading raw symbols
+/// A helper structrure for loading raw symbols
 struct RawPointerLoader<'a> {
     lib: &'a Library
 }
@@ -62,32 +62,28 @@ impl From<FfiModuleInfo> for ModuleInfo {
 
 impl Module {
     pub fn from_library(lib: Library) -> Result<Module, Box<dyn Error>> {
-        let module = unsafe {
-            let module_info: ModuleInfo = {
-                let torustiq_module_get_info: Symbol<ModuleGetInfoFn> = lib.get(b"torustiq_module_get_info")?;
-                torustiq_module_get_info()
-            }.into();
-            let loader = RawPointerLoader::new(&lib);
+        let loader = RawPointerLoader::new(&lib);
+        let module_info: ModuleInfo = {
+            let torustiq_module_get_info: RawSymbol<ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
+            torustiq_module_get_info()
+        }.into();
 
-            let init_ptr: RawSymbol<ModuleInitFn> = loader.load(b"torustiq_module_init")?;
-            let step_init_ptr: RawSymbol<ModuleStepInitFn> = loader.load(b"torustiq_module_step_init")?;
-            let step_set_param_ptr: RawSymbol<ModuleStepSetParamFn> = loader.load(b"torustiq_module_step_set_param")?;
-            let process_record_ptr: RawSymbol<ModuleProcessRecordFn> = loader.load(b"torustiq_module_process_record")?;
-            let free_record_ptr: RawSymbol<ModuleFreeRecordFn> = loader.load(b"torustiq_module_free_record")?;
+        let init_ptr: RawSymbol<ModuleInitFn> = loader.load(b"torustiq_module_init")?;
+        let step_init_ptr: RawSymbol<ModuleStepInitFn> = loader.load(b"torustiq_module_step_init")?;
+        let step_set_param_ptr: RawSymbol<ModuleStepSetParamFn> = loader.load(b"torustiq_module_step_set_param")?;
+        let process_record_ptr: RawSymbol<ModuleProcessRecordFn> = loader.load(b"torustiq_module_process_record")?;
+        let free_record_ptr: RawSymbol<ModuleFreeRecordFn> = loader.load(b"torustiq_module_free_record")?;
 
-            Module {
-                _lib: lib,
-                module_info,
+        Ok(Module {
+            _lib: lib,
+            module_info,
 
-                init_ptr,
-                step_init_ptr,
-                step_set_param_ptr,
-                process_record_ptr,
-                free_record_ptr,
-            }
-        };
-
-        Ok(module)
+            init_ptr,
+            step_init_ptr,
+            step_set_param_ptr,
+            process_record_ptr,
+            free_record_ptr,
+        })
     }
 
     pub fn get_id(&self) -> String {
