@@ -2,24 +2,27 @@ pub mod cli;
 pub mod module;
 pub mod module_loader;
 pub mod pipeline;
+pub mod shutdown;
 
 use std::{
     collections::HashMap, convert::TryFrom, fs,
     process::exit,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         mpsc::Sender, Mutex
     },
     thread, time::{self, Duration}
     };
 
-use ctrlc;
 use log::{debug, error, info};
 use once_cell::sync::Lazy;
 
+use shutdown::{init_signal_handler, is_termination_requested, on_terminate_cb};
 use torustiq_common::{
-    ffi::{shared::torustiq_module_free_record, types::{
-            functions::ModuleFreeRecordFn, module::{ModuleStepHandle, ModuleStepInitArgs, PipelineStepKind, Record}, std_types, traits::ShallowCopy
+    ffi::{shared::torustiq_module_free_record,types::{
+            functions::ModuleFreeRecordFn,
+            module::{ModuleStepHandle, ModuleStepInitArgs, PipelineStepKind, Record},
+            std_types, traits::ShallowCopy
         }},
     logging::init_logger
 };
@@ -30,7 +33,7 @@ use crate::{
     pipeline::{Pipeline, PipelineDefinition}
 };
 
-static mut TODO_TERMINATE: AtomicBool = AtomicBool::new(false);
+
 static PIPELINE_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
 static SENDERS: Lazy<Mutex<HashMap<ModuleStepHandle, Sender<Record>>>> = Lazy::new(|| {
     Mutex::new(HashMap::new())
@@ -38,17 +41,6 @@ static SENDERS: Lazy<Mutex<HashMap<ModuleStepHandle, Sender<Record>>>> = Lazy::n
 static FREE_BUF: Lazy<Mutex<HashMap<ModuleStepHandle, ModuleFreeRecordFn>>> = Lazy::new(|| {
     Mutex::new(HashMap::new())
 });
-
-fn todo_terminate() {
-    unsafe {
-        TODO_TERMINATE.store(true, Ordering::SeqCst);
-    }
-}
-
-extern "C" fn on_terminate(step_handle: std_types::Uint) {
-    info!("Received a termination signal from step with index {}", step_handle);
-    todo_terminate();
-}
 
 /// Modules use this function to send a message
 extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
@@ -61,13 +53,6 @@ extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
     let free_buf_fn_map = FREE_BUF.lock().unwrap();
     let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
     free_buf_fn(record);
-}
-
-fn init_signal_handler() {
-    ctrlc::set_handler(|| {
-        info!("Received a termination signal in main thread");
-        todo_terminate();
-    }).expect("Could not send signal on channel.");
 }
 
 /// Creates a pipeline from pipeline definition file
@@ -107,7 +92,7 @@ fn initialize_steps(pipeline: &Pipeline) -> Result<(), String> {
                 else if last_step_index == step_index { PipelineStepKind::Destination }
                 else { PipelineStepKind::Transformation },
             step_handle: std_types::Uint::try_from(step_handle).unwrap(),
-            termination_handler: on_terminate,
+            termination_handler: on_terminate_cb,
             on_data_received_fn: on_rcv,
         };
         match step.module.init_step(init_args) {
@@ -139,7 +124,7 @@ fn start_senders_receivers(pipeline: &Pipeline) {
         FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.module.free_record_ptr.clone());
         PIPELINE_THREADS_COUNT.fetch_add(1, Ordering::SeqCst);
         thread::spawn(move|| {
-            while unsafe { !TODO_TERMINATE.load(Ordering::SeqCst) } {
+            while !is_termination_requested() {
                 let record = match rx.recv_timeout(Duration::from_secs(1)) {
                     Ok(r) => r,
                     Err(_) => continue, // timeout
