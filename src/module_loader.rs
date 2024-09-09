@@ -16,23 +16,37 @@ use crate::{
 };
 
 /// Returns a HashMap of modules referenced in the pipeline definition
-pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> HashMap<String, Arc<Module>> {
+pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<HashMap<String, Arc<Module>>, String> {
     let mut modules: HashMap<String, Arc<Module>> = HashMap::new();
     let required_module_ids: Vec<String> = pipeline_def.steps
         .iter()
         .map(|step| step.handler.clone())
         .collect();
 
-    for entry in fs::read_dir(module_dir).expect(format!("Cannot open directory '{}'", module_dir).as_str()) {
-        let entry = entry.expect("Failed to load an entry");
+    let dir = match fs::read_dir(module_dir) {
+        Ok(d) => d,
+        Err(e) => return Err(format!("Cannot open directory '{}': {}", module_dir, e))
+    };
+    for entry in dir {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => return Err(format!("Failed to load an entry: {}", e)),
+        };
         let path = entry.path();
-        let path_str = path.clone().into_os_string().into_string().unwrap();
+        let path_str = match path.clone().into_os_string().into_string() {
+            Ok(p) => p,
+            Err(e) => return Err(format!("Failed to convert path into string: {:?}", e)),
+        };
 
         let (module_info, lib) = unsafe {
-            let lib = Library::new(&path)
-                .expect(format!("Failed to load a library at path '{}'", path_str).as_str());
-            let torustiq_module_get_info: Symbol<ModuleGetInfoFn> = lib.get(b"torustiq_module_get_info")
-                .expect(format!("Failed to load function 'torustiq_module_get_info' from library '{}'", path_str).as_str());
+            let lib = match Library::new(&path) {
+                Ok(l) => l,
+                Err(e) => return Err(format!("Failed to load a library at path '{}': {}", path_str, e)),
+            };
+            let torustiq_module_get_info: Symbol<ModuleGetInfoFn> = match lib.get(b"torustiq_module_get_info") {
+                Ok(s) => s,
+                Err(e) => return Err(format!("Failed to load function 'torustiq_module_get_info' from library '{}': {}", path_str, e)),
+            };
             (torustiq_module_get_info(), lib)
         };
         let module_id = cchar_to_string(module_info.id);
@@ -42,8 +56,11 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> H
             continue
         }
 
-        modules.insert(module_id.clone(), Arc::from(Module::from_library(lib)
-            .expect(format!("Failed to initialize a module from library '{}'", path_str).as_str())));
+        let module = match Module::from_library(lib) {
+            Ok(m) => m,
+            Err(e) => return Err(format!("Failed to initialize a module from library '{}': {}", path_str, e)),
+        };
+        modules.insert(module_id.clone(), Arc::from(module));
         debug!("Module '{}' is loaded.", module_id);
     }
 
@@ -56,8 +73,8 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> H
         for m in &missing_module_ids {
             log::error!("An unknown module is detected in pipeline: {}", m);
         }
-        panic!("Failed to load modules: {}", missing_module_ids.join(", "))
+        return Err(format!("Failed to load modules: {}", missing_module_ids.join(", ")));
     }
 
-    modules
+    Ok(modules)
 }

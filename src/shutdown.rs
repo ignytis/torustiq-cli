@@ -17,11 +17,14 @@ pub extern "C" fn on_terminate_cb(step_handle: std_types::Uint) {
     todo_terminate();
 }
 
-pub fn init_signal_handler() {
-    ctrlc::set_handler(|| {
+pub fn init_signal_handler() -> Result<(), String> {
+    match ctrlc::set_handler(|| {
         info!("Received a termination signal in main thread");
         todo_terminate();
-    }).expect("Could not send signal on channel.");
+    }) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Failed to init a signal handler: {}", e)),
+    }
 }
 
 pub fn is_termination_requested() -> bool {

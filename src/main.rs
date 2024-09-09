@@ -35,6 +35,9 @@ use crate::{
 
 
 static PIPELINE_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
+static PIPELINE: Lazy<Mutex<Option<Pipeline>>>= Lazy::new(|| {
+    Mutex::new(None)
+});
 static SENDERS: Lazy<Mutex<HashMap<ModuleStepHandle, Sender<Record>>>> = Lazy::new(|| {
     Mutex::new(HashMap::new())
 });
@@ -56,17 +59,17 @@ extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
 }
 
 /// Creates a pipeline from pipeline definition file
-fn create_pipeline(args: &CliArgs) -> Pipeline {
+fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
     let pipeline_def: String = match fs::read_to_string(&args.pipeline_file) {
         Ok(c) => c,
-        Err(e) => panic!("Cannot open the pipeline file: '{}'. {}", args.pipeline_file, e),
+        Err(e) => return Err(format!("Cannot open the pipeline file: '{}'. {}", args.pipeline_file, e)),
     };
     let pipeline_def: PipelineDefinition = match serde_yaml::from_str(pipeline_def.as_str()) {
         Ok(c) => c,
-        Err(e) => panic!("Cannot parse the pipeline: '{}'. {}", args.pipeline_file, e),
+        Err(e) => return Err(format!("Cannot parse the pipeline: '{}'. {}", args.pipeline_file, e)),
     };
 
-    let modules = load_modules(&args.module_dir, &pipeline_def);
+    let modules = load_modules(&args.module_dir, &pipeline_def)?;
     info!("All modules are loaded. Initialization of modules...");
     for module in modules.values() {
         debug!("Initializing module '{}'...", module.get_id());
@@ -75,7 +78,7 @@ fn create_pipeline(args: &CliArgs) -> Pipeline {
 
     let pipeline = Pipeline::from_definition(&pipeline_def, &modules);
     info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
-    pipeline
+    Ok(pipeline)
 }
 
 /// Initialization of steps: opens files or DB connections, starts listening sockets, etc
@@ -111,6 +114,7 @@ fn initialize_steps(pipeline: &Pipeline) -> Result<(), String> {
 
 /// Initialize senders and receivers
 fn start_senders_receivers(pipeline: &Pipeline) {
+    let mut senders = SENDERS.lock().unwrap();
     for i in 0..pipeline.steps.len() - 1 {
         let i_sender = i;
         let i_receiver = i_sender + 1;
@@ -123,7 +127,7 @@ fn start_senders_receivers(pipeline: &Pipeline) {
         let process_record_ptr = step_receiver.module.process_record_ptr.clone();
 
         let (tx, rx) = std::sync::mpsc::channel::<Record>();
-        SENDERS.lock().unwrap().insert(i_sender_ffi, tx);
+        senders.insert(i_sender_ffi, tx);
 
         FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.module.free_record_ptr.clone());
         PIPELINE_THREADS_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -145,19 +149,25 @@ fn start_senders_receivers(pipeline: &Pipeline) {
 fn main() {
     init_logger();
     info!("Starting the application...");
-    init_signal_handler();
+    match init_signal_handler() {
+        Ok(_) => {},
+        Err(msg) => return crash_with_message(msg),
+    };
 
     let args = CliArgs::do_parse();
-    // TODO: make static? Pipeline exists in app context
-    let pipeline = create_pipeline(&args);
-    match initialize_steps(&pipeline) {
-        Err(msg) => {
-            error!("Cannot initialize steps: {}", msg);
-            exit(-1);
-        },
-        _ => {},
-    };
-    start_senders_receivers(&pipeline);
+    {
+        let mut pipeline_option = PIPELINE.lock().unwrap();
+        *pipeline_option = match create_pipeline(&args) {
+            Ok(p) => Some(p),
+            Err(msg) => return crash_with_message(format!("Failed to create a pipeline: {}", msg))
+        };
+        let pipeline = pipeline_option.as_mut().unwrap();
+        match initialize_steps(pipeline) {
+            Err(msg) => return crash_with_message(format!("Cannot initialize steps: {}", msg)),
+            _ => {},
+        };
+        start_senders_receivers(pipeline);
+    }
 
     while PIPELINE_THREADS_COUNT.load(Ordering::SeqCst) > 0 {
         thread::sleep(time::Duration::from_millis(100));
@@ -165,4 +175,9 @@ fn main() {
     debug!("Exited from main loop");
 
     info!("Application terminated.");
+}
+
+fn crash_with_message(msg: String) {
+    error!("An error occurred. {}", msg);
+    exit(-1);
 }
