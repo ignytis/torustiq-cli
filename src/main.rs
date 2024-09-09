@@ -33,7 +33,7 @@ use crate::{
     pipeline::{Pipeline, PipelineDefinition}
 };
 
-
+/// Stores the number of pipeline threads. A pipeline thread is created per pipeline step
 static PIPELINE_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
 static PIPELINE: Lazy<Mutex<Option<Pipeline>>>= Lazy::new(|| {
     Mutex::new(None)
@@ -41,6 +41,9 @@ static PIPELINE: Lazy<Mutex<Option<Pipeline>>>= Lazy::new(|| {
 static SENDERS: Lazy<Mutex<HashMap<ModuleStepHandle, Sender<Record>>>> = Lazy::new(|| {
     Mutex::new(HashMap::new())
 });
+/// A hashmap of pointers to torustiq_module_free_record functions.
+/// As records must be deallocated by modules they are created in, this map allows to
+/// locate a deallocation function owned by module
 static FREE_BUF: Lazy<Mutex<HashMap<ModuleStepHandle, ModuleFreeRecordFn>>> = Lazy::new(|| {
     Mutex::new(HashMap::new())
 });
@@ -49,9 +52,10 @@ static FREE_BUF: Lazy<Mutex<HashMap<ModuleStepHandle, ModuleFreeRecordFn>>> = La
 extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
     let sender = match SENDERS.lock().unwrap().get(&step_handle) {
         Some(s) => s.clone(),
-        None => return,
+        None => return, // no sender exists: no action
     };
 
+    // Sends a cloned record to further processing and deallocates the original record
     sender.send(record.clone()).unwrap();
     let free_buf_fn_map = FREE_BUF.lock().unwrap();
     let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
@@ -137,6 +141,7 @@ fn start_senders_receivers(pipeline: &Pipeline) {
                     Ok(r) => r,
                     Err(_) => continue, // timeout
                 };
+                // TODO: is deep copy + deallocation of original better?
                 let record_copy = record.shallow_copy();
                 process_record_ptr(record, i_receiver_ffi);
                 torustiq_module_free_record(record_copy);
