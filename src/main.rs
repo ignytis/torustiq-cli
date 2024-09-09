@@ -87,14 +87,18 @@ fn initialize_steps(pipeline: &Pipeline) -> Result<(), String> {
         for (k, v) in &step.args { // set arguments for step
             step.module.set_step_param(step_handle, k, v);
         }
+        let kind = if 0 == step_index { PipelineStepKind::Source }
+            else if last_step_index == step_index { PipelineStepKind::Destination }
+            else { PipelineStepKind::Transformation };
         let init_args = ModuleStepInitArgs{
-            kind: if 0 == step_index { PipelineStepKind::Source }
-                else if last_step_index == step_index { PipelineStepKind::Destination }
-                else { PipelineStepKind::Transformation },
+            kind,
             step_handle: std_types::Uint::try_from(step_handle).unwrap(),
             termination_handler: on_terminate_cb,
             on_data_received_fn: on_rcv,
         };
+        // TODO:
+        // 1. Configure - pass configuration without starting servers / threads / etc
+        // 2. Start - running steps
         match step.module.init_step(init_args) {
             Ok(_) => {},
             Err(msg) => {
@@ -144,6 +148,7 @@ fn main() {
     init_signal_handler();
 
     let args = CliArgs::do_parse();
+    // TODO: make static? Pipeline exists in app context
     let pipeline = create_pipeline(&args);
     match initialize_steps(&pipeline) {
         Err(msg) => {
