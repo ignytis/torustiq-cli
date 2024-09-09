@@ -29,12 +29,12 @@ impl Pipeline {
         }
     }
 
-    pub fn from_definition(definition: &PipelineDefinition, modules: &HashMap<String, Arc<Module>>) -> Self {
+    pub fn from_definition(definition: &PipelineDefinition, modules: &HashMap<String, Arc<Module>>) -> Result<Self, String> {
         // Validate references to modules
         let mut pipeline = Pipeline::new();
         for step_def in &definition.steps {
             if modules.get(&step_def.handler).is_none() {
-                panic!("Module not found: {}", &step_def.handler);
+                return Err(format!("Module not found: {}", &step_def.handler));
             }
         }
 
@@ -46,19 +46,20 @@ impl Pipeline {
                 modules.get(&step_def.handler).unwrap().clone(),
                 step_index, step_def.args.clone())  )
             .collect();
-        pipeline.validate();
+        pipeline.validate()?;
 
-        pipeline
+        Ok(pipeline)
     }
 
     /// Validates the pipeline
-    fn validate(&self) {
+    fn validate(&self) -> Result<(), String> {
         // There were more validation rules initially, but almost all of them is gone after
         // the pipeline structure had been simplified
         let steps_len = self.steps.len();
         if steps_len < 2 {
-            panic!("Pipeline must have at least two steps. The actual number of steps: {}", steps_len)
+            return Err(format!("Pipeline must have at least two steps. The actual number of steps: {}", steps_len))
         }
+        Ok(())
     }
 }
 
