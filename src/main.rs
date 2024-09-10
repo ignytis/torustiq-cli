@@ -1,15 +1,17 @@
+pub mod callbacks;
 pub mod cli;
 pub mod module;
 pub mod module_loader;
 pub mod pipeline;
 pub mod shutdown;
+pub mod xthread;
 
 use std::{
-    collections::HashMap, convert::TryFrom, fs,
+    convert::TryFrom, fs,
     process::exit,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        mpsc::Sender, Mutex
+        Mutex
     },
     thread, time::{self, Duration}
     };
@@ -17,15 +19,18 @@ use std::{
 use log::{debug, error, info};
 use once_cell::sync::Lazy;
 
-use shutdown::{init_signal_handler, is_termination_requested, on_terminate_cb};
+use callbacks::{on_rcv_cb, on_terminate_cb};
+use shutdown::{init_signal_handler, is_termination_requested};
 use torustiq_common::{
-    ffi::{shared::torustiq_module_free_record,types::{
-            functions::ModuleFreeRecordFn,
-            module::{ModuleStepHandle, ModuleStepInitArgs, PipelineStepKind, Record},
+    ffi::{
+        shared::torustiq_module_free_record,
+        types::{
+            module::{ModuleStepInitArgs, PipelineStepKind, Record},
             std_types, traits::ShallowCopy
         }},
     logging::init_logger
 };
+use xthread::{FREE_BUF, SENDERS};
 
 use crate::{
     cli::CliArgs,
@@ -38,29 +43,6 @@ static PIPELINE_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
 static PIPELINE: Lazy<Mutex<Option<Pipeline>>>= Lazy::new(|| {
     Mutex::new(None)
 });
-static SENDERS: Lazy<Mutex<HashMap<ModuleStepHandle, Sender<Record>>>> = Lazy::new(|| {
-    Mutex::new(HashMap::new())
-});
-/// A hashmap of pointers to torustiq_module_free_record functions.
-/// As records must be deallocated by modules they are created in, this map allows to
-/// locate a deallocation function owned by module
-static FREE_BUF: Lazy<Mutex<HashMap<ModuleStepHandle, ModuleFreeRecordFn>>> = Lazy::new(|| {
-    Mutex::new(HashMap::new())
-});
-
-/// Modules use this function to send a message
-extern "C" fn on_rcv(record: Record, step_handle: ModuleStepHandle) {
-    let sender = match SENDERS.lock().unwrap().get(&step_handle) {
-        Some(s) => s.clone(),
-        None => return, // no sender exists: no action
-    };
-
-    // Sends a cloned record to further processing and deallocates the original record
-    sender.send(record.clone()).unwrap();
-    let free_buf_fn_map = FREE_BUF.lock().unwrap();
-    let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
-    free_buf_fn(record);
-}
 
 /// Creates a pipeline from pipeline definition file
 fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
@@ -104,7 +86,7 @@ fn initialize_steps(pipeline: &Pipeline) -> Result<(), String> {
             kind,
             step_handle: std_types::Uint::try_from(step_handle).unwrap(),
             termination_handler: on_terminate_cb,
-            on_data_received_fn: on_rcv,
+            on_data_received_fn: on_rcv_cb,
         };
         // TODO:
         // 1. Configure - pass configuration without starting servers / threads / etc
@@ -145,6 +127,7 @@ fn start_senders_receivers(pipeline: &Pipeline) {
                     Err(_) => continue, // timeout
                 };
                 // TODO: is deep copy + deallocation of original better?
+                // in this case we don't have to worry about updates by references inside process_record_ptr
                 let record_copy = record.shallow_copy();
                 process_record_ptr(record, i_receiver_ffi);
                 torustiq_module_free_record(record_copy);
