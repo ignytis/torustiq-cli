@@ -23,7 +23,7 @@ use torustiq_common::{
     ffi::{
         shared::torustiq_module_free_record,
         types::{
-            module::{ModuleStepInitArgs, PipelineStepKind, Record},
+            module::{ModuleStepConfigureArgs, PipelineStepKind, Record},
             std_types, traits::ShallowCopy
         }},
     logging::init_logger
@@ -38,9 +38,6 @@ use crate::{
 
 /// Stores the number of pipeline threads. A pipeline thread is created per pipeline step
 static PIPELINE_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
-// static PIPELINE: Lazy<Mutex<Option<Pipeline>>>= Lazy::new(|| {
-//     Mutex::new(None)
-// });
 static PIPELINE: OnceCell<Pipeline> = OnceCell::new();
 
 /// Creates a pipeline from pipeline definition file
@@ -70,8 +67,8 @@ fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
 }
 
 /// Initialization of steps: opens files or DB connections, starts listening sockets, etc
-fn initialize_steps(pipeline: &Pipeline) -> Result<(), String> {
-    info!("Initialization of steps...");
+fn configure_steps(pipeline: &Pipeline) -> Result<(), String> {
+    info!("Configuring steps...");
     let last_step_index = pipeline.steps.len() - 1;
     for (step_index, step) in pipeline.steps.iter().enumerate() {
         let step_handle = step.handle;
@@ -81,19 +78,16 @@ fn initialize_steps(pipeline: &Pipeline) -> Result<(), String> {
         let kind = if 0 == step_index { PipelineStepKind::Source }
             else if last_step_index == step_index { PipelineStepKind::Destination }
             else { PipelineStepKind::Transformation };
-        let init_args = ModuleStepInitArgs{
+        let config_args = ModuleStepConfigureArgs{
             kind,
             step_handle: std_types::Uint::try_from(step_handle).unwrap(),
             termination_handler: on_terminate_cb,
             on_data_received_fn: on_rcv_cb,
         };
-        // TODO:
-        // 1. Configure - pass configuration without starting servers / threads / etc
-        // 2. Start - running steps
-        match step.module.init_step(init_args) {
+        match step.module.configure_step(config_args) {
             Ok(_) => {},
             Err(msg) => {
-                return Err(format!("Failed to load step {}: {}", step.id, msg));
+                return Err(format!("Failed to configure step {}: {}", step.id, msg));
             }
         }
     }
@@ -153,8 +147,8 @@ fn main() {
             Err(msg) => return crash_with_message(format!("Failed to create a pipeline: {}", msg))
         };
         let pipeline = PIPELINE.get().unwrap();
-        match initialize_steps(pipeline) {
-            Err(msg) => return crash_with_message(format!("Cannot initialize steps: {}", msg)),
+        match configure_steps(pipeline) {
+            Err(msg) => return crash_with_message(format!("Cannot configure steps: {}", msg)),
             _ => {},
         };
         start_senders_receivers(pipeline);
