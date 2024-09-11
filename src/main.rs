@@ -7,17 +7,15 @@ pub mod shutdown;
 pub mod xthread;
 
 use std::{
-    convert::TryFrom, fs,
+    convert::TryFrom,
+    fs,
     process::exit,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Mutex
-    },
+    sync::atomic::{AtomicUsize, Ordering},
     thread, time::{self, Duration}
-    };
+};
 
 use log::{debug, error, info};
-use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
 
 use callbacks::{on_rcv_cb, on_terminate_cb};
 use shutdown::{init_signal_handler, is_termination_requested};
@@ -40,9 +38,10 @@ use crate::{
 
 /// Stores the number of pipeline threads. A pipeline thread is created per pipeline step
 static PIPELINE_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
-static PIPELINE: Lazy<Mutex<Option<Pipeline>>>= Lazy::new(|| {
-    Mutex::new(None)
-});
+// static PIPELINE: Lazy<Mutex<Option<Pipeline>>>= Lazy::new(|| {
+//     Mutex::new(None)
+// });
+static PIPELINE: OnceCell<Pipeline> = OnceCell::new();
 
 /// Creates a pipeline from pipeline definition file
 fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
@@ -147,12 +146,13 @@ fn main() {
 
     let args = CliArgs::do_parse();
     {
-        let mut pipeline_option = PIPELINE.lock().unwrap();
-        *pipeline_option = match create_pipeline(&args) {
-            Ok(p) => Some(p),
+        let _ = match create_pipeline(&args) {
+            // Err is returned here if PIPELINE is not empty which cannot happen
+            // because pipeline has no chance to be assigned before
+            Ok(p) => PIPELINE.set(p),
             Err(msg) => return crash_with_message(format!("Failed to create a pipeline: {}", msg))
         };
-        let pipeline = pipeline_option.as_mut().unwrap();
+        let pipeline = PIPELINE.get().unwrap();
         match initialize_steps(pipeline) {
             Err(msg) => return crash_with_message(format!("Cannot initialize steps: {}", msg)),
             _ => {},
