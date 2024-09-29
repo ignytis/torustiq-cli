@@ -94,6 +94,21 @@ fn configure_steps(pipeline: &Pipeline) -> Result<(), String> {
     Ok(())
 }
 
+/// Starts the data processing routines inside each step
+fn start_steps(pipeline: &Pipeline) -> Result<(), String> {
+    info!("Starting steps...");
+    for step in &pipeline.steps {
+        let step_handle = step.handle;
+        match step.module.start_step(step_handle.into()) {
+            Ok(_) => {},
+            Err(msg) => {
+                return Err(format!("Failed to start step {}: {}", step.id, msg));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Initialize senders and receivers
 fn start_senders_receivers(pipeline: &Pipeline) {
     let mut senders = SENDERS.lock().unwrap();
@@ -151,7 +166,13 @@ fn main() {
             Err(msg) => return crash_with_message(format!("Cannot configure steps: {}", msg)),
             _ => {},
         };
+
         start_senders_receivers(pipeline);
+
+        match start_steps(pipeline) {
+            Err(msg) => return crash_with_message(format!("Cannot start steps: {}", msg)),
+            _ => {},
+        };
     }
 
     while PIPELINE_THREADS_COUNT.load(Ordering::SeqCst) > 0 {

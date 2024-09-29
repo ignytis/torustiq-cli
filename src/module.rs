@@ -9,8 +9,8 @@ use libloading::os::windows::Symbol as RawSymbol;
 
 use torustiq_common::ffi::{
     types::{
-        functions::{ModuleFreeRecordFn, ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepConfigureFn, ModuleStepSetParamFn},
-        module::{ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepConfigureArgs, ModuleStepConfigureFnResult, Record}},
+        functions::{ModuleFreeRecordFn, ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepConfigureFn, ModuleStepSetParamFn, ModuleStepStartFn},
+        module::{ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepConfigureArgs, ModuleStepConfigureFnResult, ModuleStepStartFnResult, Record}},
     utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}};
 
 /// A helper structrure for loading raw symbols
@@ -40,8 +40,9 @@ pub struct Module {
     pub module_info: ModuleInfo,
 
     init_ptr: RawSymbol<ModuleInitFn>,
-    step_init_ptr: RawSymbol<ModuleStepConfigureFn>,
+    step_configure_ptr: RawSymbol<ModuleStepConfigureFn>,
     step_set_param_ptr: RawSymbol<ModuleStepSetParamFn>,
+    step_start_ptr: RawSymbol<ModuleStepStartFn>,
     pub process_record_ptr: RawSymbol<ModuleProcessRecordFn>,
     pub free_record_ptr: RawSymbol<ModuleFreeRecordFn>,
 }
@@ -69,18 +70,19 @@ impl Module {
         }.into();
 
         let init_ptr: RawSymbol<ModuleInitFn> = loader.load(b"torustiq_module_init")?;
-        let step_init_ptr: RawSymbol<ModuleStepConfigureFn> = loader.load(b"torustiq_module_step_configure")?;
+        let step_configure_ptr: RawSymbol<ModuleStepConfigureFn> = loader.load(b"torustiq_module_step_configure")?;
         let step_set_param_ptr: RawSymbol<ModuleStepSetParamFn> = loader.load(b"torustiq_module_step_set_param")?;
+        let step_start_ptr: RawSymbol<ModuleStepStartFn> = loader.load(b"torustiq_module_step_start")?;
         let process_record_ptr: RawSymbol<ModuleProcessRecordFn> = loader.load(b"torustiq_module_process_record")?;
         let free_record_ptr: RawSymbol<ModuleFreeRecordFn> = loader.load(b"torustiq_module_free_record")?;
 
         Ok(Module {
             _lib: lib,
             module_info,
-
             init_ptr,
-            step_init_ptr,
+            step_configure_ptr,
             step_set_param_ptr,
+            step_start_ptr,
             process_record_ptr,
             free_record_ptr,
         })
@@ -96,7 +98,7 @@ impl Module {
 
     pub fn configure_step(&self, args: ModuleStepConfigureArgs) -> Result<(), String> {
         let step_handle = args.step_handle;
-        match (self.step_init_ptr)(args) {
+        match (self.step_configure_ptr)(args) {
             ModuleStepConfigureFnResult::Ok => Ok(()),
             ModuleStepConfigureFnResult::ErrorKindNotSupported => Err(String::from("The module cannot be used in this step")),
             ModuleStepConfigureFnResult::ErrorMultipleStepsNotSupported(existing_step_handle) =>
@@ -104,6 +106,13 @@ impl Module {
                             the module supports only one instance of steps \
                             and is already registered in step {}", step_handle, existing_step_handle)),
             ModuleStepConfigureFnResult::ErrorMisc(e) => Err(cchar_to_string(e)),
+        }
+    }
+
+    pub fn start_step(&self, step_handle: usize) -> Result<(), String> {
+        match (self.step_start_ptr)(usize::try_into(step_handle).unwrap()) {
+            ModuleStepStartFnResult::Ok => Ok(()),
+            ModuleStepStartFnResult::ErrorMisc(e) => Err(cchar_to_string(e)),
         }
     }
 
