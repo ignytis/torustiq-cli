@@ -15,7 +15,6 @@ use std::{
 };
 
 use log::{debug, error, info};
-use once_cell::sync::OnceCell;
 
 use callbacks::{on_rcv_cb, on_terminate_cb};
 use shutdown::{init_signal_handler, is_termination_requested};
@@ -38,7 +37,6 @@ use crate::{
 
 /// Stores the number of pipeline threads. A pipeline thread is created per pipeline step
 static PIPELINE_THREADS_COUNT: AtomicUsize = AtomicUsize::new(0);
-static PIPELINE: OnceCell<Pipeline> = OnceCell::new();
 
 /// Creates a pipeline from pipeline definition file
 fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
@@ -94,21 +92,6 @@ fn configure_steps(pipeline: &Pipeline) -> Result<(), String> {
     Ok(())
 }
 
-/// Starts the data processing routines inside each step
-fn start_steps(pipeline: &Pipeline) -> Result<(), String> {
-    info!("Starting steps...");
-    for step in &pipeline.steps {
-        let step_handle = step.handle;
-        match step.module.start_step(step_handle.into()) {
-            Ok(_) => {},
-            Err(msg) => {
-                return Err(format!("Failed to start step {}: {}", step.id, msg));
-            }
-        }
-    }
-    Ok(())
-}
-
 /// Initialize senders and receivers
 fn start_senders_receivers(pipeline: &Pipeline) {
     let mut senders = SENDERS.lock().unwrap();
@@ -145,6 +128,24 @@ fn start_senders_receivers(pipeline: &Pipeline) {
     }
 }
 
+/// Starts the data processing routines inside each step
+fn start_steps(pipeline: &Pipeline) -> Result<(), String> {
+    info!("Starting steps...{}", pipeline.steps.len());
+
+    for step in &pipeline.steps {
+        let step_handle = step.handle;
+        info!("TEST {} start", step_handle);
+        match step.module.start_step(step_handle.into()) {
+            Ok(_) => {},
+            Err(msg) => {
+                return Err(format!("Failed to start step {}: {}", step.id, msg));
+            }
+        }
+        info!("TEST {} end", step_handle);
+    }
+    Ok(())
+}
+
 fn main() {
     init_logger();
     info!("Starting the application...");
@@ -154,26 +155,21 @@ fn main() {
     };
 
     let args = CliArgs::do_parse();
-    {
-        let _ = match create_pipeline(&args) {
-            // Err is returned here if PIPELINE is not empty which cannot happen
-            // because pipeline has no chance to be assigned before
-            Ok(p) => PIPELINE.set(p),
-            Err(msg) => return crash_with_message(format!("Failed to create a pipeline: {}", msg))
-        };
-        let pipeline = PIPELINE.get().unwrap();
-        match configure_steps(pipeline) {
-            Err(msg) => return crash_with_message(format!("Cannot configure steps: {}", msg)),
-            _ => {},
-        };
+    let pipeline = match create_pipeline(&args) {
+        Ok(p) => p,
+        Err(msg) => return crash_with_message(format!("Failed to create a pipeline: {}", msg))
+    };
+    match configure_steps(&pipeline) {
+        Err(msg) => return crash_with_message(format!("Cannot configure steps: {}", msg)),
+        _ => {},
+    };
 
-        start_senders_receivers(pipeline);
+    start_senders_receivers(&pipeline);
 
-        match start_steps(pipeline) {
-            Err(msg) => return crash_with_message(format!("Cannot start steps: {}", msg)),
-            _ => {},
-        };
-    }
+    match start_steps(&pipeline) {
+        Err(msg) => return crash_with_message(format!("Cannot start steps: {}", msg)),
+        _ => {},
+    };
 
     while PIPELINE_THREADS_COUNT.load(Ordering::SeqCst) > 0 {
         thread::sleep(time::Duration::from_millis(100));
