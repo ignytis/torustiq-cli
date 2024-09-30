@@ -3,7 +3,7 @@
 use log::info;
 
 use crate::{
-    shutdown::todo_terminate,
+    shutdown::set_termination_flag,
     xthread::{FREE_BUF, SENDERS}
 };
 use torustiq_common::ffi::types::{
@@ -14,7 +14,7 @@ use torustiq_common::ffi::types::{
 /// Called from modules to trigger shutdown of the app
 pub extern "C" fn on_terminate_cb(step_handle: std_types::Uint) {
     info!("Received a termination signal from step with index {}", step_handle);
-    todo_terminate();
+    set_termination_flag();
 }
 
 /// Steps use this function to pass the produced record to dependent step
