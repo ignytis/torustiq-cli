@@ -1,8 +1,28 @@
-use std::{collections::HashMap, sync::Arc, str};
+use std::{
+    collections::HashMap, sync::Arc, str,
+    convert::TryFrom,
+    sync::atomic::{AtomicUsize, Ordering},
+    thread, time::Duration
+};
 
+
+use log::info;
 use serde::{Serialize, Deserialize};
 
-use crate::module::Module;
+use torustiq_common::ffi::{
+    shared::torustiq_module_free_record,
+    types::{
+        module::{ModuleStepConfigureArgs, PipelineStepKind, Record},
+        std_types, traits::ShallowCopy
+    }
+};
+
+use crate::{
+    callbacks,
+    module::Module,
+    shutdown::is_termination_requested,
+    xthread::{FREE_BUF, SENDERS}
+};
 
 /// A step in pipeline: source, destination, transformation, etc
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -19,16 +39,20 @@ pub struct PipelineDefinition {
 }
 
 pub struct Pipeline {
+    /// Stores the number of active reader threads. Needed to check if the app could be terminated.
+    reader_threads_count: Arc<AtomicUsize>,
     pub steps: Vec<PipelineStep>,
 }
 
 impl Pipeline {
     pub fn new() -> Pipeline {
         Pipeline {
+            reader_threads_count: Arc::new(AtomicUsize::new(0)),
             steps: Vec::new(),
         }
     }
 
+    /// Creates a new pipeline from definition and injects modules into steps
     pub fn from_definition(definition: &PipelineDefinition, modules: &HashMap<String, Arc<Module>>) -> Result<Self, String> {
         // Validate references to modules
         let mut pipeline = Pipeline::new();
@@ -60,6 +84,92 @@ impl Pipeline {
             return Err(format!("Pipeline must have at least two steps. The actual number of steps: {}", steps_len))
         }
         Ok(())
+    }
+
+    /// Pass configuration to each step
+    pub fn configure_steps(&self) -> Result<(), String> {
+        info!("Configuring steps...");
+        let last_step_index = self.steps.len() - 1;
+        for (step_index, step) in self.steps.iter().enumerate() {
+            let step_handle = step.handle;
+            for (k, v) in &step.args { // set arguments for step
+                step.module.set_step_param(step_handle, k, v);
+            }
+            let kind = if 0 == step_index { PipelineStepKind::Source }
+                else if last_step_index == step_index { PipelineStepKind::Destination }
+                else { PipelineStepKind::Transformation };
+            let config_args = ModuleStepConfigureArgs{
+                kind,
+                step_handle: std_types::Uint::try_from(step_handle).unwrap(),
+                termination_handler: callbacks::on_terminate_cb,
+                on_data_received_fn: callbacks::on_rcv_cb,
+            };
+            match step.module.configure_step(config_args) {
+                Ok(_) => {},
+                Err(msg) => {
+                    return Err(format!("Failed to configure step {}: {}", step.id, msg));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Start senders and receivers
+    pub fn start_senders_receivers(&self) {
+        let mut senders = SENDERS.lock().unwrap();
+        for i in 0..self.steps.len() - 1 {
+            let i_sender = i;
+            let i_receiver = i_sender + 1;
+            let step_sender: &PipelineStep = self.steps.get(i_sender).unwrap();
+            let step_receiver = self.steps.get(i_receiver).unwrap();
+
+            let i_sender_ffi = u32::try_from(i_sender).unwrap();
+            let i_receiver_ffi = u32::try_from(i_receiver).unwrap();
+
+            let process_record_ptr = step_receiver.module.process_record_ptr.clone();
+
+            let (tx, rx) = std::sync::mpsc::channel::<Record>();
+            senders.insert(i_sender_ffi, tx);
+
+            FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.module.free_record_ptr.clone());
+            let reader_threads_count = self.reader_threads_count.clone();
+            reader_threads_count.fetch_add(1, Ordering::SeqCst);
+            thread::spawn(move|| {
+                while !is_termination_requested() {
+                    let record = match rx.recv_timeout(Duration::from_secs(1)) {
+                        Ok(r) => r,
+                        Err(_) => continue, // timeout
+                    };
+                    // TODO: is deep copy + deallocation of original better?
+                    // in this case we don't have to worry about updates by references inside process_record_ptr
+                    let record_copy = record.shallow_copy();
+                    process_record_ptr(record, i_receiver_ffi);
+                    torustiq_module_free_record(record_copy);
+                }
+                reader_threads_count.fetch_sub(1, Ordering::SeqCst);
+            });
+        }
+    }
+
+    /// Starts the data processing routines inside each step
+    pub fn start_steps(&self) -> Result<(), String> {
+        info!("Starting steps...");
+        for step in &self.steps {
+            let step_handle = step.handle;
+            match step.module.start_step(step_handle.into()) {
+                Ok(_) => {},
+                Err(msg) => {
+                    return Err(format!("Failed to start step {}: {}", step.id, msg));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns true if the pipeline is running
+    pub fn is_running(&self) -> bool {
+        // TODO: change this. Need to gracefully shut down steps and set a flag
+        self.reader_threads_count.load(Ordering::SeqCst) > 0
     }
 }
 
