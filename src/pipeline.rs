@@ -1,13 +1,11 @@
 use std::{
-    collections::HashMap, sync::Arc, str,
+    collections::HashMap, sync::Arc,
     convert::TryFrom,
     sync::atomic::{AtomicUsize, Ordering},
     thread, time::Duration
 };
 
-
 use log::info;
-use serde::{Serialize, Deserialize};
 
 use torustiq_common::ffi::{
     shared::torustiq_module_free_record,
@@ -19,24 +17,11 @@ use torustiq_common::ffi::{
 
 use crate::{
     callbacks,
+    config::PipelineDefinition,
     module::Module,
     shutdown::is_termination_requested,
     xthread::{FREE_BUF, SENDERS}
 };
-
-/// A step in pipeline: source, destination, transformation, etc
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct PipelineStepDefinition {
-    pub name: String,
-    pub handler: String,
-    pub args: Option<HashMap<String, String>>,
-}
-
-/// A pipeline definition. Contains multiple steps
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct PipelineDefinition {
-    pub steps: Vec<PipelineStepDefinition>,
-}
 
 pub struct Pipeline {
     /// Stores the number of active reader threads. Needed to check if the app could be terminated.
@@ -173,10 +158,15 @@ impl Pipeline {
     }
 }
 
+/// A single step in pipeline
 pub struct PipelineStep {
+    /// This handle is passed to modules in order to identity a step
     pub handle: usize,
+    /// A human-readable identifier
     pub id: String,
+    /// A reference to module library
     pub module: Arc<Module>,
+    /// Module-specific arguments - credentials, formatting rules, etc
     pub args: HashMap<String, String>,
 }
 

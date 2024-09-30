@@ -11,8 +11,8 @@ use torustiq_common::ffi::{
 };
 
 use crate::{
+    config::PipelineDefinition,
     module::Module,
-    pipeline::PipelineDefinition
 };
 
 /// Returns a HashMap of modules referenced in the pipeline definition

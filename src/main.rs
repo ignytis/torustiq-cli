@@ -1,5 +1,6 @@
 pub mod callbacks;
 pub mod cli;
+pub mod config;
 pub mod module;
 pub mod module_loader;
 pub mod pipeline;
@@ -19,8 +20,9 @@ use torustiq_common::logging::init_logger;
 
 use crate::{
     cli::CliArgs,
+    config::PipelineDefinition,
     module_loader::load_modules,
-    pipeline::{Pipeline, PipelineDefinition}
+    pipeline::Pipeline
 };
 
 /// Creates a pipeline from pipeline definition file
