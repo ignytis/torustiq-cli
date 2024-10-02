@@ -8,21 +8,20 @@ pub mod shutdown;
 pub mod xthread;
 
 use std::{
-    fs,
-    process::exit,
-    thread, time
+    fs, process::exit, sync::{Arc, Mutex}, thread, time
 };
 
 use log::{debug, error, info};
 
 use shutdown::init_signal_handler;
 use torustiq_common::logging::init_logger;
+use xthread::PIPELINE;
 
 use crate::{
     cli::CliArgs,
     config::PipelineDefinition,
     module_loader::load_modules,
-    pipeline::Pipeline
+    pipeline::pipeline::Pipeline
 };
 
 /// Creates a pipeline from pipeline definition file
@@ -64,19 +63,32 @@ fn main() {
         Ok(p) => p,
         Err(msg) => return crash_with_message(format!("Failed to create a pipeline: {}", msg))
     };
-    match pipeline.configure_steps() {
-        Err(msg) => return crash_with_message(format!("Cannot configure steps: {}", msg)),
-        _ => {},
-    };
+    let pipeline_arc = Arc::new(Mutex::new(pipeline));
 
-    pipeline.start_senders_receivers();
 
-    match pipeline.start_steps() {
-        Err(msg) => return crash_with_message(format!("Cannot start steps: {}", msg)),
-        _ => {},
-    };
+    unsafe {
+        match PIPELINE.set(pipeline_arc.clone()) {
+            Ok(_) => {},
+            Err(_) => crash_with_message(format!("Failed to register the pipeline in static context")),
+        };
+    }
 
-    while pipeline.is_running() {
+    {
+        let mut pipeline = pipeline_arc.lock().unwrap();
+        match pipeline.configure_steps() {
+            Err(msg) => return crash_with_message(format!("Cannot configure steps: {}", msg)),
+            _ => {},
+        };
+
+        pipeline.start_senders_receivers();
+
+        match pipeline.start_steps() {
+            Err(msg) => return crash_with_message(format!("Cannot start steps: {}", msg)),
+            _ => {},
+        };
+    }
+
+    while pipeline_arc.lock().unwrap().is_running() {
         thread::sleep(time::Duration::from_millis(100));
     }
     debug!("Exited from main loop");

@@ -9,7 +9,7 @@ use libloading::os::windows::Symbol as RawSymbol;
 
 use torustiq_common::ffi::{
     types::{
-        functions::{ModuleFreeRecordFn, ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepConfigureFn, ModuleStepSetParamFn, ModuleStepStartFn},
+        functions::{ModuleFreeRecordFn, ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepConfigureFn, ModuleStepSetParamFn, ModuleStepShutdownFn, ModuleStepStartFn},
         module::{ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepConfigureArgs, ModuleStepConfigureFnResult, ModuleStepStartFnResult, Record}},
     utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}};
 
@@ -42,6 +42,7 @@ pub struct Module {
     init_ptr: RawSymbol<ModuleInitFn>,
     step_configure_ptr: RawSymbol<ModuleStepConfigureFn>,
     step_set_param_ptr: RawSymbol<ModuleStepSetParamFn>,
+    pub step_shutdown_ptr: RawSymbol<ModuleStepShutdownFn>,
     step_start_ptr: RawSymbol<ModuleStepStartFn>,
     pub process_record_ptr: RawSymbol<ModuleProcessRecordFn>,
     pub free_record_ptr: RawSymbol<ModuleFreeRecordFn>,
@@ -72,6 +73,7 @@ impl Module {
         let init_ptr: RawSymbol<ModuleInitFn> = loader.load(b"torustiq_module_init")?;
         let step_configure_ptr: RawSymbol<ModuleStepConfigureFn> = loader.load(b"torustiq_module_step_configure")?;
         let step_set_param_ptr: RawSymbol<ModuleStepSetParamFn> = loader.load(b"torustiq_module_step_set_param")?;
+        let step_shutdown_ptr: RawSymbol<ModuleStepShutdownFn> = loader.load(b"torustiq_module_step_shutdown")?;
         let step_start_ptr: RawSymbol<ModuleStepStartFn> = loader.load(b"torustiq_module_step_start")?;
         let process_record_ptr: RawSymbol<ModuleProcessRecordFn> = loader.load(b"torustiq_module_process_record")?;
         let free_record_ptr: RawSymbol<ModuleFreeRecordFn> = loader.load(b"torustiq_module_free_record")?;
@@ -82,6 +84,7 @@ impl Module {
             init_ptr,
             step_configure_ptr,
             step_set_param_ptr,
+            step_shutdown_ptr,
             step_start_ptr,
             process_record_ptr,
             free_record_ptr,

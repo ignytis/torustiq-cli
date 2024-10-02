@@ -1,7 +1,12 @@
 use std::{
-    collections::HashMap, sync::Arc,
+    collections::HashMap,
     convert::TryFrom,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{
+            AtomicUsize, Ordering
+        },
+        Arc, Mutex
+    },
     thread, time::Duration
 };
 
@@ -10,7 +15,7 @@ use log::info;
 use torustiq_common::ffi::{
     shared::torustiq_module_free_record,
     types::{
-        module::{ModuleStepConfigureArgs, PipelineStepKind, Record},
+        module::{ModuleStepConfigureArgs, ModuleStepHandle, PipelineStepKind, Record},
         std_types, traits::ShallowCopy
     }
 };
@@ -19,6 +24,7 @@ use crate::{
     callbacks,
     config::PipelineDefinition,
     module::Module,
+    pipeline::pipeline_step::PipelineStep,
     shutdown::is_termination_requested,
     xthread::{FREE_BUF, SENDERS}
 };
@@ -26,7 +32,7 @@ use crate::{
 pub struct Pipeline {
     /// Stores the number of active reader threads. Needed to check if the app could be terminated.
     reader_threads_count: Arc<AtomicUsize>,
-    pub steps: Vec<PipelineStep>,
+    pub steps: Vec<Arc<Mutex<PipelineStep>>>,
 }
 
 impl Pipeline {
@@ -51,9 +57,12 @@ impl Pipeline {
             .steps
             .iter()
             .enumerate()
-            .map(|(step_index, step_def)| PipelineStep::from_module(
-                modules.get(&step_def.handler).unwrap().clone(),
-                step_index, step_def.args.clone())  )
+            .map(|(step_index, step_def)| {
+                let s = PipelineStep::from_module(
+                    modules.get(&step_def.handler).unwrap().clone(),
+                    step_index, step_def.args.clone());
+                Arc::new(Mutex::new(s))
+            })
             .collect();
         pipeline.validate()?;
 
@@ -72,10 +81,11 @@ impl Pipeline {
     }
 
     /// Pass configuration to each step
-    pub fn configure_steps(&self) -> Result<(), String> {
+    pub fn configure_steps(&mut self) -> Result<(), String> {
         info!("Configuring steps...");
         let last_step_index = self.steps.len() - 1;
-        for (step_index, step) in self.steps.iter().enumerate() {
+        for (step_index, step_mtx) in self.steps.iter_mut().enumerate() {
+            let mut step = step_mtx.lock().unwrap();
             let step_handle = step.handle;
             for (k, v) in &step.args { // set arguments for step
                 step.module.set_step_param(step_handle, k, v);
@@ -83,18 +93,12 @@ impl Pipeline {
             let kind = if 0 == step_index { PipelineStepKind::Source }
                 else if last_step_index == step_index { PipelineStepKind::Destination }
                 else { PipelineStepKind::Transformation };
-            let config_args = ModuleStepConfigureArgs{
+            step.configure(ModuleStepConfigureArgs{
                 kind,
                 step_handle: std_types::Uint::try_from(step_handle).unwrap(),
-                termination_handler: callbacks::on_terminate_cb,
+                on_step_terminate_cb: callbacks::on_step_terminate_cb,
                 on_data_received_fn: callbacks::on_rcv_cb,
-            };
-            match step.module.configure_step(config_args) {
-                Ok(_) => {},
-                Err(msg) => {
-                    return Err(format!("Failed to configure step {}: {}", step.id, msg));
-                }
-            }
+            })?;
         }
         Ok(())
     }
@@ -105,25 +109,35 @@ impl Pipeline {
         for i in 0..self.steps.len() - 1 {
             let i_sender = i;
             let i_receiver = i_sender + 1;
-            let step_sender: &PipelineStep = self.steps.get(i_sender).unwrap();
-            let step_receiver = self.steps.get(i_receiver).unwrap();
+            let step_sender = self.steps.get(i_sender).unwrap().clone();
+            let step_receiver = self.steps
+                .get(i_receiver).unwrap()
+                .lock().unwrap();
 
             let i_sender_ffi = u32::try_from(i_sender).unwrap();
             let i_receiver_ffi = u32::try_from(i_receiver).unwrap();
 
             let process_record_ptr = step_receiver.module.process_record_ptr.clone();
+            let step_shutdown_ptr = step_receiver.module.step_shutdown_ptr.clone();
 
             let (tx, rx) = std::sync::mpsc::channel::<Record>();
             senders.insert(i_sender_ffi, tx);
 
-            FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.module.free_record_ptr.clone());
+            FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.lock().unwrap().module.free_record_ptr.clone());
             let reader_threads_count = self.reader_threads_count.clone();
             reader_threads_count.fetch_add(1, Ordering::SeqCst);
-            thread::spawn(move|| {
-                while !is_termination_requested() {
-                    let record = match rx.recv_timeout(Duration::from_secs(1)) {
+            // Reader thread
+            thread::spawn(move || {
+                loop {
+                    let record = match rx.recv_timeout(Duration::from_millis(100)) {
                         Ok(r) => r,
-                        Err(_) => continue, // timeout
+                        Err(_) => { // timeout
+                            if step_sender.lock().unwrap().is_terminated() { // no messages because the source is shut down
+                                break;
+                            } else {
+                                continue; // no messages, but source is online
+                            }
+                        }
                     };
                     // TODO: is deep copy + deallocation of original better?
                     // in this case we don't have to worry about updates by references inside process_record_ptr
@@ -131,6 +145,13 @@ impl Pipeline {
                     process_record_ptr(record, i_receiver_ffi);
                     torustiq_module_free_record(record_copy);
                 }
+                // while !is_termination_requested() {
+
+                // }
+
+                // Processed all the data from upstream. Terminating the current step
+                // step_receiver.module.shutdown(i_receiver);
+                step_shutdown_ptr(i_receiver_ffi);
                 reader_threads_count.fetch_sub(1, Ordering::SeqCst);
             });
         }
@@ -139,7 +160,8 @@ impl Pipeline {
     /// Starts the data processing routines inside each step
     pub fn start_steps(&self) -> Result<(), String> {
         info!("Starting steps...");
-        for step in &self.steps {
+        for step_mtx in &self.steps {
+            let step = step_mtx.lock().unwrap();
             let step_handle = step.handle;
             match step.module.start_step(step_handle.into()) {
                 Ok(_) => {},
@@ -152,33 +174,24 @@ impl Pipeline {
     }
 
     /// Returns true if the pipeline is running
+    /// "running" means "not all steps are terminated"
     pub fn is_running(&self) -> bool {
+        let steps_total = self.steps.len();
+        let steps_terminated = self.steps.iter()
+            .map(|step| match step.lock().unwrap().is_terminated() { true => 1, false => 0 })
+            .fold(0, |acc, e| acc + e );
+
+        steps_terminated < steps_total
         // TODO: change this. Need to gracefully shut down steps and set a flag
-        self.reader_threads_count.load(Ordering::SeqCst) > 0
+        //self.reader_threads_count.load(Ordering::SeqCst) > 0
     }
-}
 
-/// A single step in pipeline
-pub struct PipelineStep {
-    /// This handle is passed to modules in order to identity a step
-    pub handle: usize,
-    /// A human-readable identifier
-    pub id: String,
-    /// A reference to module library
-    pub module: Arc<Module>,
-    /// Module-specific arguments - credentials, formatting rules, etc
-    pub args: HashMap<String, String>,
-}
-
-impl PipelineStep {
-    /// Initializes a step from module (=dynamic library).
-    /// Index is a step index in pipeline. Needed to format a unique step ID
-    pub fn from_module(module: Arc<Module>, handle: usize, args: Option<HashMap<String, String>>) -> PipelineStep {
-        PipelineStep {
-            handle,
-            id: format!("step_{}_{}", handle, module.module_info.id),
-            module,
-            args: args.unwrap_or(HashMap::new()),
+    pub fn get_step_by_handle_mut(&self, handle: usize) -> Option<Arc<Mutex<PipelineStep>>> {
+        for h in &self.steps {
+            if h.lock().unwrap().handle == handle {
+                return Some(h.clone())
+            }
         }
+        None
     }
 }
