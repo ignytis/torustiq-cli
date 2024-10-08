@@ -15,7 +15,7 @@ use log::info;
 use torustiq_common::ffi::{
     shared::torustiq_module_free_record,
     types::{
-        module::{ModuleStepConfigureArgs, ModuleStepHandle, PipelineStepKind, Record},
+        module::{ModuleStepConfigureArgs, PipelineStepKind, Record},
         std_types, traits::ShallowCopy
     }
 };
@@ -25,7 +25,6 @@ use crate::{
     config::PipelineDefinition,
     module::Module,
     pipeline::pipeline_step::PipelineStep,
-    shutdown::is_termination_requested,
     xthread::{FREE_BUF, SENDERS}
 };
 
@@ -109,7 +108,9 @@ impl Pipeline {
         for i in 0..self.steps.len() - 1 {
             let i_sender = i;
             let i_receiver = i_sender + 1;
-            let step_sender = self.steps.get(i_sender).unwrap().clone();
+            let step_sender = self.steps
+                .get(i_sender).unwrap()
+                .clone();
             let step_receiver = self.steps
                 .get(i_receiver).unwrap()
                 .lock().unwrap();
@@ -145,12 +146,8 @@ impl Pipeline {
                     process_record_ptr(record, i_receiver_ffi);
                     torustiq_module_free_record(record_copy);
                 }
-                // while !is_termination_requested() {
-
-                // }
 
                 // Processed all the data from upstream. Terminating the current step
-                // step_receiver.module.shutdown(i_receiver);
                 step_shutdown_ptr(i_receiver_ffi);
                 reader_threads_count.fetch_sub(1, Ordering::SeqCst);
             });
@@ -182,8 +179,6 @@ impl Pipeline {
             .fold(0, |acc, e| acc + e );
 
         steps_terminated < steps_total
-        // TODO: change this. Need to gracefully shut down steps and set a flag
-        //self.reader_threads_count.load(Ordering::SeqCst) > 0
     }
 
     pub fn get_step_by_handle_mut(&self, handle: usize) -> Option<Arc<Mutex<PipelineStep>>> {
@@ -193,5 +188,12 @@ impl Pipeline {
             }
         }
         None
+    }
+
+    pub fn trigger_termination(&self) {
+        let first_step = self.steps
+            .first().unwrap()
+            .lock().unwrap();
+        first_step.shutdown();
     }
 }

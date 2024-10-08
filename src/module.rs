@@ -136,4 +136,8 @@ impl Module {
     pub fn free_record(&self, r: Record) {
         (self.free_record_ptr)(r);
     }
+
+    pub fn shutdown(&self, step_handle: usize) {
+        (self.step_shutdown_ptr)(usize::try_into(step_handle).unwrap());
+    }
 }

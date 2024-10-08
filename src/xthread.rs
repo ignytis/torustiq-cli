@@ -28,5 +28,4 @@ pub static FREE_BUF: Lazy<Mutex<HashMap<ModuleStepHandle, ModuleFreeRecordFn>>> 
     Mutex::new(HashMap::new())
 });
 
-
 pub static mut PIPELINE: OnceCell<Arc<Mutex<Pipeline>>> = OnceCell::new();

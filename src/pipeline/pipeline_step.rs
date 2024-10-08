@@ -62,4 +62,8 @@ impl PipelineStep {
     pub fn is_terminated(&self) -> bool {
         self.state == PipelineStepState::Terminated
     }
+
+    pub fn shutdown(&self) {
+        self.module.shutdown(self.handle);
+    }
 }
