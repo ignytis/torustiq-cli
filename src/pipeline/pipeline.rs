@@ -2,15 +2,13 @@ use std::{
     collections::HashMap,
     convert::TryFrom,
     sync::{
-        atomic::{
-            AtomicUsize, Ordering
-        },
+        mpsc::channel,
         Arc, Mutex
     },
     thread, time::Duration
 };
 
-use log::info;
+use log::{error, info};
 
 use torustiq_common::ffi::{
     shared::torustiq_module_free_record,
@@ -25,19 +23,16 @@ use crate::{
     config::PipelineDefinition,
     module::Module,
     pipeline::pipeline_step::PipelineStep,
-    xthread::{FREE_BUF, SENDERS}
+    xthread::{SystemMessage, FREE_BUF, PIPELINE, SENDERS, SYSTEM_MESSAGES}
 };
 
 pub struct Pipeline {
-    /// Stores the number of active reader threads. Needed to check if the app could be terminated.
-    reader_threads_count: Arc<AtomicUsize>,
     pub steps: Vec<Arc<Mutex<PipelineStep>>>,
 }
 
 impl Pipeline {
     pub fn new() -> Pipeline {
         Pipeline {
-            reader_threads_count: Arc::new(AtomicUsize::new(0)),
             steps: Vec::new(),
         }
     }
@@ -103,8 +98,52 @@ impl Pipeline {
     }
 
     /// Start senders and receivers
-    pub fn start_senders_receivers(&self) {
+    pub fn start_senders_receivers(&self) -> Result<(), String> {
         let mut senders = SENDERS.lock().unwrap();
+
+        let (m_tx, m_rx) = channel::<SystemMessage>();
+        match SYSTEM_MESSAGES.set(m_tx) {
+            Ok(_) => {},
+            Err(_) => return Err(String::from("Failed to initialize a system message channel"))
+        };
+
+        // A system command thread
+        thread::spawn(|| {
+            let m_rx = m_rx;
+            loop {
+                let msg = match m_rx.recv_timeout(Duration::from_millis(100)) {
+                    Ok(r) => r,
+                    Err(_) => continue, // timeout
+                };
+
+                match msg {
+                    SystemMessage::TerminateStep(step_handle) => {
+                        let pipeline = unsafe {
+                            match PIPELINE.get_mut() {
+                                Some(p) => {
+                                    p.lock().unwrap()
+                                },
+                                None => {
+                                    error!("Cannot process the termination callback for step {}: \
+                                        pipeline is not registered in static context", step_handle);
+                                    return;
+                                }
+                            }
+                        };
+                        let pipeline_step_arc = match pipeline.get_step_by_handle_mut(usize::try_from(step_handle).unwrap()) {
+                            Some(s) => s,
+                            None => {
+                                error!("Cannot find a pipeline step with handle '{}' in static context", step_handle);
+                                return;
+                            }
+                        };
+                        let mut pipeline_step = pipeline_step_arc.lock().unwrap();
+                        pipeline_step.set_state_terminated();
+                    }
+                }
+            }
+        });
+
         for i in 0..self.steps.len() - 1 {
             let i_sender = i;
             let i_receiver = i_sender + 1;
@@ -121,12 +160,17 @@ impl Pipeline {
             let process_record_ptr = step_receiver.module.process_record_ptr.clone();
             let step_shutdown_ptr = step_receiver.module.step_shutdown_ptr.clone();
 
-            let (tx, rx) = std::sync::mpsc::channel::<Record>();
+            // Pointers to free buffer
+            FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.lock().unwrap().module.free_record_ptr.clone());
+
+            // Record channels
+            let (tx, rx) = channel::<Record>();
             senders.insert(i_sender_ffi, tx);
 
-            FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.lock().unwrap().module.free_record_ptr.clone());
-            let reader_threads_count = self.reader_threads_count.clone();
-            reader_threads_count.fetch_add(1, Ordering::SeqCst);
+            // System message channels
+
+            // let reader_threads_count = self.reader_threads_count.clone();
+            // reader_threads_count.fetch_add(1, Ordering::SeqCst);
             // Reader thread
             thread::spawn(move || {
                 loop {
@@ -149,9 +193,11 @@ impl Pipeline {
 
                 // Processed all the data from upstream. Terminating the current step
                 step_shutdown_ptr(i_receiver_ffi);
-                reader_threads_count.fetch_sub(1, Ordering::SeqCst);
+                // reader_threads_count.fetch_sub(1, Ordering::SeqCst);
             });
         }
+
+        Ok(())
     }
 
     /// Starts the data processing routines inside each step

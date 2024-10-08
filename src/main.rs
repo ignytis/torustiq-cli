@@ -80,7 +80,10 @@ fn main() {
             _ => {},
         };
 
-        pipeline.start_senders_receivers();
+        match pipeline.start_senders_receivers() {
+            Err(msg) => return crash_with_message(format!("Cannot start the sender and receiver channels: {}", msg)),
+            _ => {},
+        };
 
         match pipeline.start_steps() {
             Err(msg) => return crash_with_message(format!("Cannot start steps: {}", msg)),

@@ -1,42 +1,27 @@
-use std::thread;
-
 /// These functions are passed to modules and called from there
+/// It's preferred way to handle the data asynchronously using data and
+/// system message channels in order not to block the module routines
 
 use log::{debug, error};
 
 use torustiq_common::ffi::types::module::{ModuleStepHandle, Record};
 
-use crate::xthread::{FREE_BUF, PIPELINE, SENDERS};
-
+use crate::xthread::{FREE_BUF, SENDERS, SYSTEM_MESSAGES, SystemMessage};
 
 /// Called from modules on step thread termination
 pub extern "C"  fn on_step_terminate_cb(step_handle: ModuleStepHandle) {
-    // TODO: consider command channels which send events from callbacks
-    thread::spawn(move || {
-        debug!("Received a termination signal from step with index {}", step_handle);
-        let pipeline = unsafe {
-            match PIPELINE.get_mut() {
-                Some(p) => {
-                    p.lock().unwrap()
-                },
-                None => {
-                    error!("Cannot process the termination callback for step {}: \
-                        pipeline is not registered in static context", step_handle);
-                    return;
-                }
-            }
-        };
-        let pipeline_step_arc = match pipeline.get_step_by_handle_mut(usize::try_from(step_handle).unwrap()) {
-            Some(s) => s,
-            None => {
-                error!("Cannot find a pipeline step with handle '{}' in static context", step_handle);
-                return;
-            }
-        };
-        let mut pipeline_step = pipeline_step_arc.lock().unwrap();
-        pipeline_step.set_state_terminated();
-    });
-    // set_termination_flag();
+    debug!("A step termination signal is triggered from step with index {}", step_handle);
+    let msg_chan = match SYSTEM_MESSAGES.get() {
+        Some(c) => c,
+        None => {
+            error!("Termination callback failure: the system message channel is not initialized.");
+            return
+        }
+    };
+    match msg_chan.send(SystemMessage::TerminateStep(step_handle)) {
+        Ok(_) => {},
+        Err(e) => error!("Termination callback failure: cannot send a termination message ({})", e)
+    };
 }
 
 /// Steps use this function to pass the produced record to dependent step
