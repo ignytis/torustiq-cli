@@ -103,7 +103,7 @@ impl Module {
         let step_handle = args.step_handle;
         match (self.step_configure_ptr)(args) {
             ModuleStepConfigureFnResult::Ok => Ok(()),
-            ModuleStepConfigureFnResult::ErrorKindNotSupported => Err(String::from("The module cannot be used in this step")),
+            ModuleStepConfigureFnResult::ErrorKindNotSupported => Err(format!("The module cannot be used in step with handle '{}'", step_handle)),
             ModuleStepConfigureFnResult::ErrorMultipleStepsNotSupported(existing_step_handle) =>
                 Err(format!("Cannot configure step with handle {}: \
                             the module supports only one instance of steps \
