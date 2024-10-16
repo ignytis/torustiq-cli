@@ -194,7 +194,6 @@ impl Pipeline {
 
                 // Processed all the data from upstream. Terminating the current step
                 step_shutdown_ptr(i_receiver_ffi);
-                // reader_threads_count.fetch_sub(1, Ordering::SeqCst);
             });
         }
 

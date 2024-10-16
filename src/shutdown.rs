@@ -1,9 +1,6 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use log::{error, info};
 
 use crate::xthread::PIPELINE;
-
-static mut TODO_TERMINATE: AtomicBool = AtomicBool::new(false);
 
 /// Initializes a system signal handler (e.g. handles CTRL+C)
 pub fn init_signal_handler() -> Result<(), String> {
@@ -26,8 +23,4 @@ pub fn init_signal_handler() -> Result<(), String> {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("Failed to init a signal handler: {}", e)),
     }
-}
-
-pub fn is_termination_requested() -> bool {
-    unsafe { TODO_TERMINATE.load(Ordering::SeqCst) }
 }
