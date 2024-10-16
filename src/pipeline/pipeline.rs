@@ -183,8 +183,10 @@ impl Pipeline {
                             }
                         }
                     };
-                    // TODO: is deep copy + deallocation of original better?
-                    // in this case we don't have to worry about updates by references inside process_record_ptr
+                    // NO deep copy here for performance purposes.
+                    // In some occasions there is no need to have an original record deep-copied:
+                    // - it's used only partially (e.g. metadata only)
+                    // - it's processed instantly and therefore not stored inside module.
                     let record_copy = record.shallow_copy();
                     process_record_ptr(record, i_receiver_ffi);
                     torustiq_module_free_record(record_copy);
