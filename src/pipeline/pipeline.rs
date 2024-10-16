@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    convert::TryFrom,
     sync::{
         mpsc::channel,
         Arc, Mutex
@@ -27,14 +26,14 @@ use crate::{
 };
 
 pub struct Pipeline {
-    pub description: String,
+    pub description: Option<String>,
     pub steps: Vec<Arc<Mutex<PipelineStep>>>,
 }
 
 impl Pipeline {
     pub fn new() -> Pipeline {
         Pipeline {
-            description: String::new(),
+            description: Some(String::new()),
             steps: Vec::new(),
         }
     }
@@ -43,6 +42,8 @@ impl Pipeline {
     pub fn from_definition(definition: &PipelineDefinition, modules: &HashMap<String, Arc<Module>>) -> Result<Self, String> {
         // Validate references to modules
         let mut pipeline = Pipeline::new();
+        pipeline.description = definition.description.clone();
+
         for step_def in &definition.steps {
             if modules.get(&step_def.handler).is_none() {
                 return Err(format!("Module not found: {}", &step_def.handler));

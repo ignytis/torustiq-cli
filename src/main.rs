@@ -63,8 +63,11 @@ fn main() {
         Ok(p) => p,
         Err(msg) => return crash_with_message(format!("Failed to create a pipeline: {}", msg))
     };
+    if pipeline.description.is_some() {
+        debug!("Description of pipeline: {}", pipeline.description.clone().unwrap());
+    }
+    
     let pipeline_arc = Arc::new(Mutex::new(pipeline));
-
 
     unsafe {
         match PIPELINE.set(pipeline_arc.clone()) {

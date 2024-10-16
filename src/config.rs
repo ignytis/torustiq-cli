@@ -13,5 +13,6 @@ pub struct PipelineStepDefinition {
 /// A pipeline definition. Contains multiple steps
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct PipelineDefinition {
+    pub description: Option<String>,
     pub steps: Vec<PipelineStepDefinition>,
 }
