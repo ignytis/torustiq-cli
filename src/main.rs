@@ -42,7 +42,7 @@ fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
         module.init();
     }
 
-    let pipeline = match Pipeline::from_definition(&pipeline_def, &modules) {
+    let pipeline = match Pipeline::try_from((&pipeline_def, &modules)) {
         Ok(p) => p,
         Err(e) => return Err(format!("Failed to create a pipeline from definition: {}", e))
     };

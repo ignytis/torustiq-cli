@@ -38,34 +38,6 @@ impl Pipeline {
         }
     }
 
-    /// Creates a new pipeline from definition and injects modules into steps
-    pub fn from_definition(definition: &PipelineDefinition, modules: &HashMap<String, Arc<Module>>) -> Result<Self, String> {
-        // Validate references to modules
-        let mut pipeline = Pipeline::new();
-        pipeline.description = definition.description.clone();
-
-        for step_def in &definition.steps {
-            if modules.get(&step_def.handler).is_none() {
-                return Err(format!("Module not found: {}", &step_def.handler));
-            }
-        }
-
-        pipeline.steps = definition
-            .steps
-            .iter()
-            .enumerate()
-            .map(|(step_index, step_def)| {
-                let s = PipelineStep::from_module(
-                    modules.get(&step_def.handler).unwrap().clone(),
-                    step_index, step_def.args.clone());
-                Arc::new(Mutex::new(s))
-            })
-            .collect();
-        pipeline.validate()?;
-
-        Ok(pipeline)
-    }
-
     /// Validates the pipeline
     fn validate(&self) -> Result<(), String> {
         // There were more validation rules initially, but almost all of them is gone after
@@ -242,4 +214,36 @@ impl Pipeline {
             .lock().unwrap();
         first_step.shutdown();
     }
+}
+
+impl TryFrom<(&PipelineDefinition, &HashMap<String, Arc<Module>>)> for Pipeline {
+    fn try_from(value: (&PipelineDefinition, &HashMap<String, Arc<Module>>)) -> Result<Self, Self::Error> {
+        let (definition, modules) = value;
+        // Validate references to modules
+        let mut pipeline = Pipeline::new();
+        pipeline.description = definition.description.clone();
+
+        for step_def in &definition.steps {
+            if modules.get(&step_def.handler).is_none() {
+                return Err(format!("Module not found: {}", &step_def.handler));
+            }
+        }
+
+        pipeline.steps = definition
+            .steps
+            .iter()
+            .enumerate()
+            .map(|(step_index, step_def)| {
+                let s = PipelineStep::from_module(
+                    modules.get(&step_def.handler).unwrap().clone(),
+                    step_index, step_def.args.clone());
+                Arc::new(Mutex::new(s))
+            })
+            .collect();
+        pipeline.validate()?;
+
+        Ok(pipeline)
+    }
+
+    type Error = String;
 }
