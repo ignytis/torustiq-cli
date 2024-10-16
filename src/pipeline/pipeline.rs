@@ -27,12 +27,14 @@ use crate::{
 };
 
 pub struct Pipeline {
+    pub description: String,
     pub steps: Vec<Arc<Mutex<PipelineStep>>>,
 }
 
 impl Pipeline {
     pub fn new() -> Pipeline {
         Pipeline {
+            description: String::new(),
             steps: Vec::new(),
         }
     }
@@ -167,10 +169,6 @@ impl Pipeline {
             let (tx, rx) = channel::<Record>();
             senders.insert(i_sender_ffi, tx);
 
-            // System message channels
-
-            // let reader_threads_count = self.reader_threads_count.clone();
-            // reader_threads_count.fetch_add(1, Ordering::SeqCst);
             // Reader thread
             thread::spawn(move || {
                 loop {
