@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{
-        mpsc::channel,
+        mpsc::{channel, Receiver},
         Arc, Mutex
     },
     thread, time::Duration
@@ -28,6 +28,84 @@ use crate::{
 pub struct Pipeline {
     pub description: Option<String>,
     pub steps: Vec<Arc<Mutex<PipelineStep>>>,
+}
+
+/// Starts a system command thread.
+/// System command threads change the state of pipeline. For instance, a command thread can terminate the pipeline.
+fn start_system_command_thread(m_rx: Receiver<SystemMessage>) {
+    // A system command thread
+    thread::spawn(|| {
+        let m_rx = m_rx;
+        loop {
+            let msg = match m_rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(r) => r,
+                Err(_) => continue, // timeout
+            };
+
+            match msg {
+                SystemMessage::TerminateStep(step_handle) => {
+                    let pipeline = unsafe {
+                        match PIPELINE.get_mut() {
+                            Some(p) => {
+                                p.lock().unwrap()
+                            },
+                            None => {
+                                error!("Cannot process the termination callback for step {}: \
+                                    pipeline is not registered in static context", step_handle);
+                                return;
+                            }
+                        }
+                    };
+                    let pipeline_step_arc = match pipeline.get_step_by_handle_mut(usize::try_from(step_handle).unwrap()) {
+                        Some(s) => s,
+                        None => {
+                            error!("Cannot find a pipeline step with handle '{}' in static context", step_handle);
+                            return;
+                        }
+                    };
+                    let mut pipeline_step = pipeline_step_arc.lock().unwrap();
+                    pipeline_step.set_state_terminated();
+                }
+            }
+        }
+    });
+}
+
+/// Starts a reader thread.
+/// Reader threads listen input from the previous (sender) steps and forward records to further (receiver) steps
+fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_arc: Arc<Mutex<PipelineStep>>, rx: Receiver<Record>) {
+    let (process_record_ptr, step_shutdown_ptr, i_receiver_ffi) = {
+        let step_receiver = step_receiver_arc.lock().unwrap();
+        (
+            step_receiver.module.process_record_ptr.clone(),
+            step_receiver.module.step_shutdown_ptr.clone(),
+            u32::try_from(step_receiver.handle).unwrap(),
+        )
+    };
+    thread::spawn(move || {
+        loop {
+            let record = match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(r) => r,
+                Err(_) => { // timeout
+                    if step_sender_arc.lock().unwrap().is_terminated() { // no messages because the source is shut down
+                        break;
+                    } else {
+                        continue; // no messages, but source is online
+                    }
+                }
+            };
+            // NO deep copy here for performance purposes.
+            // In some occasions there is no need to have an original record deep-copied:
+            // - it's used only partially (e.g. metadata only)
+            // - it's processed instantly and therefore not stored inside module.
+            let record_copy = record.shallow_copy();
+            process_record_ptr(record, i_receiver_ffi);
+            torustiq_module_free_record(record_copy);
+        }
+
+        // Processed all the data from upstream. Terminating the current step
+        step_shutdown_ptr(i_receiver_ffi);
+    });
 }
 
 impl Pipeline {
@@ -82,91 +160,25 @@ impl Pipeline {
             Err(_) => return Err(String::from("Failed to initialize a system message channel"))
         };
 
-        // A system command thread
-        thread::spawn(|| {
-            let m_rx = m_rx;
-            loop {
-                let msg = match m_rx.recv_timeout(Duration::from_millis(100)) {
-                    Ok(r) => r,
-                    Err(_) => continue, // timeout
-                };
-
-                match msg {
-                    SystemMessage::TerminateStep(step_handle) => {
-                        let pipeline = unsafe {
-                            match PIPELINE.get_mut() {
-                                Some(p) => {
-                                    p.lock().unwrap()
-                                },
-                                None => {
-                                    error!("Cannot process the termination callback for step {}: \
-                                        pipeline is not registered in static context", step_handle);
-                                    return;
-                                }
-                            }
-                        };
-                        let pipeline_step_arc = match pipeline.get_step_by_handle_mut(usize::try_from(step_handle).unwrap()) {
-                            Some(s) => s,
-                            None => {
-                                error!("Cannot find a pipeline step with handle '{}' in static context", step_handle);
-                                return;
-                            }
-                        };
-                        let mut pipeline_step = pipeline_step_arc.lock().unwrap();
-                        pipeline_step.set_state_terminated();
-                    }
-                }
-            }
-        });
+        start_system_command_thread(m_rx);
 
         for i in 0..self.steps.len() - 1 {
             let i_sender = i;
             let i_receiver = i_sender + 1;
-            let step_sender = self.steps
-                .get(i_sender).unwrap()
-                .clone();
-            let step_receiver = self.steps
-                .get(i_receiver).unwrap()
-                .lock().unwrap();
+            let step_sender_arc = self.steps
+                .get(i_sender).unwrap().clone();
+            let step_receiver_arc = self.steps
+                .get(i_receiver).unwrap().clone();
 
             let i_sender_ffi = u32::try_from(i_sender).unwrap();
-            let i_receiver_ffi = u32::try_from(i_receiver).unwrap();
-
-            let process_record_ptr = step_receiver.module.process_record_ptr.clone();
-            let step_shutdown_ptr = step_receiver.module.step_shutdown_ptr.clone();
 
             // Pointers to free buffer
-            FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender.lock().unwrap().module.free_record_ptr.clone());
-
+            FREE_BUF.lock().unwrap().insert(i_sender_ffi, *step_sender_arc.lock().unwrap().module.free_record_ptr.clone());
             // Record channels
             let (tx, rx) = channel::<Record>();
             senders.insert(i_sender_ffi, tx);
 
-            // Reader thread
-            thread::spawn(move || {
-                loop {
-                    let record = match rx.recv_timeout(Duration::from_millis(100)) {
-                        Ok(r) => r,
-                        Err(_) => { // timeout
-                            if step_sender.lock().unwrap().is_terminated() { // no messages because the source is shut down
-                                break;
-                            } else {
-                                continue; // no messages, but source is online
-                            }
-                        }
-                    };
-                    // NO deep copy here for performance purposes.
-                    // In some occasions there is no need to have an original record deep-copied:
-                    // - it's used only partially (e.g. metadata only)
-                    // - it's processed instantly and therefore not stored inside module.
-                    let record_copy = record.shallow_copy();
-                    process_record_ptr(record, i_receiver_ffi);
-                    torustiq_module_free_record(record_copy);
-                }
-
-                // Processed all the data from upstream. Terminating the current step
-                step_shutdown_ptr(i_receiver_ffi);
-            });
+            start_reader_thread(step_sender_arc, step_receiver_arc, rx);
         }
 
         Ok(())
