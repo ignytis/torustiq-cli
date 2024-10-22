@@ -47,14 +47,3 @@ WIP; NOT production-ready. Currently I'm working on implementation of core featu
 As the project is on the early stage, there are some problems in the code that I would like to fix later:
 
 - Memory leaks. Memory is dynamically allocated to store input, output and intermediate results. The static garbage collector of Rust cannot cover those cases, because _unsafe_ code is used for cross-library communnication. Need to review the memory allocation logic and to add the manual de-allocation wherever it is needed
-- Error handling. The application "panics" if any error occurs, but in some cases errors should be ignored or just reported to error log
-- Some functions like `torustiq_module_step_set_param` are copypasted across modules. Could this be replaced with imported single module?
-
-## TODO
-
-_Some of these points might repeat the "known issues" section_
-
-- Pass parameters from YAML pipeline definition into modules
-- Handle errors. Instead of _expect_ function call use matching + print more detailed error messages and do NOT terminate the app if error is not critical
-- Deallocate the memory for dynamically created objects which are shared between the app and modules
-- Use modules as both source and destination (if applicable). Splitting modules into sources and destination causes having too much components
