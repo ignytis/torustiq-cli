@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
-ctrlc = { version="3.4.4", features= ["termination"] }
+ctrlc = { version="3.4.4", features = ["termination"] }
 libloading = "0.8.3"
 log = "0.4.21"
 once_cell = "1.19.0"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_yaml = "0.9.34"
-torustiq-common = { path = "../torustiq-common" }
+torustiq-common = { path = "../torustiq-common"}

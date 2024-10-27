@@ -10,7 +10,7 @@ use std::{
 use log::{error, info};
 
 use torustiq_common::ffi::{
-    shared::torustiq_module_free_record,
+    shared::do_free_record,
     types::{
         module::{ModuleStepConfigureArgs, PipelineStepKind, Record},
         std_types, traits::ShallowCopy
@@ -100,7 +100,7 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
             // - it's processed instantly and therefore not stored inside module.
             let record_copy = record.shallow_copy();
             process_record_ptr(record, i_receiver_ffi);
-            torustiq_module_free_record(record_copy);
+            do_free_record(record_copy);
         }
 
         // Processed all the data from upstream. Terminating the current step
