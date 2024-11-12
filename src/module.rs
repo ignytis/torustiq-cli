@@ -8,8 +8,7 @@ use libloading::os::unix::Symbol as RawSymbol;
 use libloading::os::windows::Symbol as RawSymbol;
 
 use torustiq_common::ffi::{
-    types::{
-        functions::{ModuleFreeRecordFn, ModuleGetInfoFn, ModuleInitFn, ModuleProcessRecordFn, ModuleStepConfigureFn, ModuleStepSetParamFn, ModuleStepShutdownFn, ModuleStepStartFn},
+    types::{functions as fn_defs,
         module::{ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepConfigureArgs, ModuleStepConfigureFnResult, ModuleStepStartFnResult, Record}},
     utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}};
 
@@ -39,13 +38,14 @@ pub struct Module {
     _lib: Library,
     pub module_info: ModuleInfo,
 
-    init_ptr: RawSymbol<ModuleInitFn>,
-    step_configure_ptr: RawSymbol<ModuleStepConfigureFn>,
-    step_set_param_ptr: RawSymbol<ModuleStepSetParamFn>,
-    pub step_shutdown_ptr: RawSymbol<ModuleStepShutdownFn>,
-    step_start_ptr: RawSymbol<ModuleStepStartFn>,
-    pub process_record_ptr: RawSymbol<ModuleProcessRecordFn>,
-    pub free_record_ptr: RawSymbol<ModuleFreeRecordFn>,
+    init_ptr: RawSymbol<fn_defs::ModuleInitFn>,
+    step_configure_ptr: RawSymbol<fn_defs::ModuleStepConfigureFn>,
+    step_set_param_ptr: RawSymbol<fn_defs::ModuleStepSetParamFn>,
+    pub step_shutdown_ptr: RawSymbol<fn_defs::ModuleStepShutdownFn>,
+    step_start_ptr: RawSymbol<fn_defs::ModuleStepStartFn>,
+    pub process_record_ptr: RawSymbol<fn_defs::ModuleProcessRecordFn>,
+    pub free_char_ptr: RawSymbol<fn_defs::ModuleFreeCharPtrFn>,
+    pub free_record_ptr: RawSymbol<fn_defs::ModuleFreeRecordFn>,
 }
 
 pub struct ModuleInfo {
@@ -66,17 +66,18 @@ impl Module {
     pub fn from_library(lib: Library) -> Result<Module, Box<dyn Error>> {
         let loader = RawPointerLoader::new(&lib);
         let module_info: ModuleInfo = {
-            let torustiq_module_get_info: RawSymbol<ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
+            let torustiq_module_get_info: RawSymbol<fn_defs::ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
             torustiq_module_get_info()
         }.into();
 
-        let init_ptr: RawSymbol<ModuleInitFn> = loader.load(b"torustiq_module_init")?;
-        let step_configure_ptr: RawSymbol<ModuleStepConfigureFn> = loader.load(b"torustiq_module_step_configure")?;
-        let step_set_param_ptr: RawSymbol<ModuleStepSetParamFn> = loader.load(b"torustiq_module_step_set_param")?;
-        let step_shutdown_ptr: RawSymbol<ModuleStepShutdownFn> = loader.load(b"torustiq_module_step_shutdown")?;
-        let step_start_ptr: RawSymbol<ModuleStepStartFn> = loader.load(b"torustiq_module_step_start")?;
-        let process_record_ptr: RawSymbol<ModuleProcessRecordFn> = loader.load(b"torustiq_module_process_record")?;
-        let free_record_ptr: RawSymbol<ModuleFreeRecordFn> = loader.load(b"torustiq_module_free_record")?;
+        let init_ptr: RawSymbol<fn_defs::ModuleInitFn> = loader.load(b"torustiq_module_init")?;
+        let step_configure_ptr: RawSymbol<fn_defs::ModuleStepConfigureFn> = loader.load(b"torustiq_module_step_configure")?;
+        let step_set_param_ptr: RawSymbol<fn_defs::ModuleStepSetParamFn> = loader.load(b"torustiq_module_step_set_param")?;
+        let step_shutdown_ptr: RawSymbol<fn_defs::ModuleStepShutdownFn> = loader.load(b"torustiq_module_step_shutdown")?;
+        let step_start_ptr: RawSymbol<fn_defs::ModuleStepStartFn> = loader.load(b"torustiq_module_step_start")?;
+        let process_record_ptr: RawSymbol<fn_defs::ModuleProcessRecordFn> = loader.load(b"torustiq_module_process_record")?;
+        let free_record_ptr: RawSymbol<fn_defs::ModuleFreeRecordFn> = loader.load(b"torustiq_module_free_record")?;
+        let free_char_ptr: RawSymbol<fn_defs::ModuleFreeCharPtrFn> = loader.load(b"torustiq_module_free_char_ptr")?;
 
         Ok(Module {
             _lib: lib,
@@ -87,6 +88,7 @@ impl Module {
             step_shutdown_ptr,
             step_start_ptr,
             process_record_ptr,
+            free_char_ptr,
             free_record_ptr,
         })
     }
