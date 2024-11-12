@@ -110,14 +110,22 @@ impl Module {
                 Err(format!("Cannot configure step with handle {}: \
                             the module supports only one instance of steps \
                             and is already registered in step {}", step_handle, existing_step_handle)),
-            ModuleStepConfigureFnResult::ErrorMisc(e) => Err(cchar_to_string(e)),
+            ModuleStepConfigureFnResult::ErrorMisc(e) => {
+                let err_string = cchar_to_string(e.clone());
+                (self.free_char_ptr)(e);
+                Err(err_string)
+            },
         }
     }
 
     pub fn start_step(&self, step_handle: usize) -> Result<(), String> {
         match (self.step_start_ptr)(usize::try_into(step_handle).unwrap()) {
             ModuleStepStartFnResult::Ok => Ok(()),
-            ModuleStepStartFnResult::ErrorMisc(e) => Err(cchar_to_string(e)),
+            ModuleStepStartFnResult::ErrorMisc(e) => {
+                let err_string = cchar_to_string(e.clone());
+                (self.free_char_ptr)(e);
+                Err(err_string)
+            },
         }
     }
 
