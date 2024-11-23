@@ -8,8 +8,12 @@ use libloading::os::unix::Symbol as RawSymbol;
 use libloading::os::windows::Symbol as RawSymbol;
 
 use torustiq_common::ffi::{
-    types::{functions as fn_defs,
-        module::{ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepConfigureArgs, ModuleStepConfigureFnResult, ModuleStepStartFnResult, Record}},
+    types::{
+        functions as fn_defs,
+        module::{
+            ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepConfigureArgs,
+            ModuleStepConfigureFnResult, ModuleStepStartFnResult, Record
+        }},
     utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}};
 
 /// A helper structrure for loading raw symbols
@@ -62,9 +66,11 @@ impl From<FfiModuleInfo> for ModuleInfo {
     }
 }
 
-impl Module {
-    pub fn from_library(lib: Library) -> Result<Module, Box<dyn Error>> {
-        let loader = RawPointerLoader::new(&lib);
+impl TryFrom<Library> for Module {
+    type Error = Box<dyn Error>;
+
+    fn try_from(value: Library) -> Result<Module, Self::Error> {
+        let loader = RawPointerLoader::new(&value);
         let module_info: ModuleInfo = {
             let torustiq_module_get_info: RawSymbol<fn_defs::ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
             torustiq_module_get_info()
@@ -81,10 +87,12 @@ impl Module {
             free_char_ptr: loader.load(b"torustiq_module_free_record")?,
             free_record_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
 
-            _lib: lib,
+            _lib: value,
         })
     }
+}
 
+impl Module {
     pub fn get_id(&self) -> String {
         self.module_info.id.clone()
     }

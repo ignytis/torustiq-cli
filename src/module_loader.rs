@@ -56,7 +56,7 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> R
             continue
         }
 
-        let module = match Module::from_library(lib) {
+        let module = match Module::try_from(lib) {
             Ok(m) => m,
             Err(e) => return Err(format!("Failed to initialize a module from library '{}': {}", path_str, e)),
         };
