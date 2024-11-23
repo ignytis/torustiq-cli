@@ -70,26 +70,18 @@ impl Module {
             torustiq_module_get_info()
         }.into();
 
-        let init_ptr: RawSymbol<fn_defs::ModuleInitFn> = loader.load(b"torustiq_module_init")?;
-        let step_configure_ptr: RawSymbol<fn_defs::ModuleStepConfigureFn> = loader.load(b"torustiq_module_step_configure")?;
-        let step_set_param_ptr: RawSymbol<fn_defs::ModuleStepSetParamFn> = loader.load(b"torustiq_module_step_set_param")?;
-        let step_shutdown_ptr: RawSymbol<fn_defs::ModuleStepShutdownFn> = loader.load(b"torustiq_module_step_shutdown")?;
-        let step_start_ptr: RawSymbol<fn_defs::ModuleStepStartFn> = loader.load(b"torustiq_module_step_start")?;
-        let process_record_ptr: RawSymbol<fn_defs::ModuleProcessRecordFn> = loader.load(b"torustiq_module_process_record")?;
-        let free_record_ptr: RawSymbol<fn_defs::ModuleFreeRecordFn> = loader.load(b"torustiq_module_free_record")?;
-        let free_char_ptr: RawSymbol<fn_defs::ModuleFreeCharPtrFn> = loader.load(b"torustiq_module_free_char_ptr")?;
-
         Ok(Module {
-            _lib: lib,
             module_info,
-            init_ptr,
-            step_configure_ptr,
-            step_set_param_ptr,
-            step_shutdown_ptr,
-            step_start_ptr,
-            process_record_ptr,
-            free_char_ptr,
-            free_record_ptr,
+            init_ptr: loader.load(b"torustiq_module_init")?,
+            step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
+            step_set_param_ptr: loader.load(b"torustiq_module_step_set_param")?,
+            step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
+            step_start_ptr: loader.load(b"torustiq_module_step_start")?,
+            process_record_ptr: loader.load(b"torustiq_module_process_record")?,
+            free_char_ptr: loader.load(b"torustiq_module_free_record")?,
+            free_record_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+
+            _lib: lib,
         })
     }
 
