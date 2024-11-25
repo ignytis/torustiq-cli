@@ -47,7 +47,7 @@ pub struct Module {
     step_set_param_ptr: RawSymbol<fn_defs::ModuleStepSetParamFn>,
     pub step_shutdown_ptr: RawSymbol<fn_defs::ModuleStepShutdownFn>,
     step_start_ptr: RawSymbol<fn_defs::ModuleStepStartFn>,
-    pub process_record_ptr: RawSymbol<fn_defs::ModuleProcessRecordFn>,
+    pub step_process_record_ptr: RawSymbol<fn_defs::ModuleProcessRecordFn>,
     pub free_char_ptr: RawSymbol<fn_defs::ModuleFreeCharPtrFn>,
     pub free_record_ptr: RawSymbol<fn_defs::ModuleFreeRecordFn>,
 }
@@ -83,9 +83,9 @@ impl TryFrom<Library> for Module {
             step_set_param_ptr: loader.load(b"torustiq_module_step_set_param")?,
             step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
             step_start_ptr: loader.load(b"torustiq_module_step_start")?,
-            process_record_ptr: loader.load(b"torustiq_module_process_record")?,
-            free_char_ptr: loader.load(b"torustiq_module_free_record")?,
-            free_record_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+            step_process_record_ptr: loader.load(b"torustiq_module_step_process_record")?,
+            free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+            free_record_ptr: loader.load(b"torustiq_module_free_record")?,
 
             _lib: value,
         })
@@ -140,7 +140,7 @@ impl Module {
 
     pub fn process_record(&self, input: Record, step_handle: usize) -> ModuleProcessRecordFnResult {
         let i = usize::try_into(step_handle).unwrap();
-        (self.process_record_ptr)(input, i)
+        (self.step_process_record_ptr)(input, i)
     }
 
     pub fn free_record(&self, r: Record) {

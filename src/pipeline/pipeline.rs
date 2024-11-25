@@ -74,11 +74,11 @@ fn start_system_command_thread(m_rx: Receiver<SystemMessage>) {
 /// Starts a reader thread.
 /// Reader threads listen input from the previous (sender) steps and forward records to further (receiver) steps
 fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_arc: Arc<Mutex<PipelineStep>>, rx: Receiver<Record>) {
-    let (free_char_ptr, process_record_ptr, step_shutdown_ptr, i_receiver_ffi, step_id) = {
+    let (free_char_ptr, step_process_record_ptr, step_shutdown_ptr, i_receiver_ffi, step_id) = {
         let step_receiver = step_receiver_arc.lock().unwrap();
         (
             step_receiver.module.free_char_ptr.clone(),
-            step_receiver.module.process_record_ptr.clone(),
+            step_receiver.module.step_process_record_ptr.clone(),
             step_receiver.module.step_shutdown_ptr.clone(),
             u32::try_from(step_receiver.handle).unwrap(),
             step_receiver.id.clone(),
@@ -101,7 +101,7 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
             // - it's used only partially (e.g. metadata only)
             // - it's processed instantly and therefore not stored inside module.
             let record_copy = record.shallow_copy();
-            match process_record_ptr(record, i_receiver_ffi) {
+            match step_process_record_ptr(record, i_receiver_ffi) {
                 ModuleProcessRecordFnResult::Err(cerr) => {
                     let err: String = cchar_to_string(cerr);
                     error!("Failed to process record in step '{}': {}", step_id, err);
