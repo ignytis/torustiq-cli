@@ -20,7 +20,7 @@ use torustiq_common::ffi::{
 use crate::{
     callbacks,
     config::PipelineDefinition,
-    module::Module,
+    modules::step_module::StepModule,
     pipeline::pipeline_step::PipelineStep,
     xthread::{SystemMessage, FREE_BUF, PIPELINE, SENDERS, SYSTEM_MESSAGES}
 };
@@ -237,8 +237,8 @@ impl Pipeline {
     }
 }
 
-impl TryFrom<(&PipelineDefinition, &HashMap<String, Arc<Module>>)> for Pipeline {
-    fn try_from(value: (&PipelineDefinition, &HashMap<String, Arc<Module>>)) -> Result<Self, Self::Error> {
+impl TryFrom<(&PipelineDefinition, &HashMap<String, Arc<StepModule>>)> for Pipeline {
+    fn try_from(value: (&PipelineDefinition, &HashMap<String, Arc<StepModule>>)) -> Result<Self, Self::Error> {
         let (definition, modules) = value;
         // Validate references to modules
         let mut pipeline = Pipeline::new();

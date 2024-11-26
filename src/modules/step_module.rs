@@ -1,7 +1,8 @@
+/// Pipeline step modules
+
 use std::error::Error;
 
 use libloading::Library;
-
 #[cfg(unix)]
 use libloading::os::unix::Symbol as RawSymbol;
 #[cfg(windows)]
@@ -11,10 +12,14 @@ use torustiq_common::ffi::{
     types::{
         functions as fn_defs,
         module::{
-            ModuleInfo as FfiModuleInfo, ModuleProcessRecordFnResult, ModuleStepConfigureArgs,
+            ModuleProcessRecordFnResult, ModuleStepConfigureArgs,
             ModuleStepConfigureFnResult, ModuleStepStartFnResult, Record
-        }},
-    utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}};
+        },
+    },
+    utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}
+};
+
+use crate::modules::{BaseModule, ModuleInfo};
 
 /// A helper structrure for loading raw symbols
 struct RawPointerLoader<'a> {
@@ -37,12 +42,12 @@ impl<'a> RawPointerLoader<'a> {
     }
 }
 
-pub struct Module {
-    /// A library handle needs to be stored in order to keep the imported functions available
-    _lib: Library,
-    pub module_info: ModuleInfo,
+/// A pipeline step module.
+/// This kind of modules is involved directly in data processing:
+/// it produces, transforms, or writes the data to destination
+pub struct StepModule {
+    base: BaseModule,
 
-    init_ptr: RawSymbol<fn_defs::ModuleInitFn>,
     step_configure_ptr: RawSymbol<fn_defs::ModuleStepConfigureFn>,
     step_set_param_ptr: RawSymbol<fn_defs::ModuleStepSetParamFn>,
     pub step_shutdown_ptr: RawSymbol<fn_defs::ModuleStepShutdownFn>,
@@ -52,33 +57,17 @@ pub struct Module {
     pub free_record_ptr: RawSymbol<fn_defs::ModuleFreeRecordFn>,
 }
 
-pub struct ModuleInfo {
-    pub id: String,
-    pub name: String,
-}
-
-impl From<FfiModuleInfo> for ModuleInfo {
-    fn from(value: FfiModuleInfo) -> Self {
-        ModuleInfo {
-            id: cchar_to_string(value.id),
-            name: cchar_to_string(value.name),
-        }
-    }
-}
-
-impl TryFrom<Library> for Module {
+impl TryFrom<Library> for StepModule {
     type Error = Box<dyn Error>;
 
-    fn try_from(value: Library) -> Result<Module, Self::Error> {
+    fn try_from(value: Library) -> Result<StepModule, Self::Error> {
         let loader = RawPointerLoader::new(&value);
         let module_info: ModuleInfo = {
             let torustiq_module_get_info: RawSymbol<fn_defs::ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
             torustiq_module_get_info()
         }.into();
 
-        Ok(Module {
-            module_info,
-            init_ptr: loader.load(b"torustiq_module_init")?,
+        Ok(StepModule {
             step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
             step_set_param_ptr: loader.load(b"torustiq_module_step_set_param")?,
             step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
@@ -86,19 +75,28 @@ impl TryFrom<Library> for Module {
             step_process_record_ptr: loader.load(b"torustiq_module_step_process_record")?,
             free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
             free_record_ptr: loader.load(b"torustiq_module_free_record")?,
+            
+            base: BaseModule {
+                init_ptr: loader.load(b"torustiq_module_init")?,
 
-            _lib: value,
+                module_info,
+                _lib: value,
+            },
         })
     }
 }
 
-impl Module {
+impl StepModule {
     pub fn get_id(&self) -> String {
-        self.module_info.id.clone()
+        self.base.module_info.id.clone()
+    }
+
+    pub fn get_info(&self) -> &ModuleInfo {
+        self.base.get_info()
     }
 
     pub fn init(&self) {
-        (self.init_ptr)()
+        self.base.init();
     }
 
     pub fn configure_step(&self, args: ModuleStepConfigureArgs) -> Result<(), String> {

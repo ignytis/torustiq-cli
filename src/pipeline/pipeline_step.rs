@@ -5,7 +5,7 @@ use std::{
 use log::debug;
 use torustiq_common::ffi::types::module::ModuleStepConfigureArgs;
 
-use crate::module::Module;
+use crate::modules::step_module::StepModule;
 
 
 /// State of step
@@ -30,7 +30,7 @@ pub struct PipelineStep {
     /// A human-readable identifier
     pub id: String,
     /// A reference to module library
-    pub module: Arc<Module>,
+    pub module: Arc<StepModule>,
     /// State of step
     pub state: PipelineStepState,
 }
@@ -38,11 +38,11 @@ pub struct PipelineStep {
 impl PipelineStep {
     /// Initializes a step from module (=dynamic library).
     /// Index is a step index in pipeline. Needed to format a unique step ID
-    pub fn from_module(module: Arc<Module>, handle: usize, args: Option<HashMap<String, String>>) -> PipelineStep {
+    pub fn from_module(module: Arc<StepModule>, handle: usize, args: Option<HashMap<String, String>>) -> PipelineStep {
         PipelineStep {
             args: args.unwrap_or(HashMap::new()),
             handle,
-            id: format!("step_{}_{}", handle, module.module_info.id),
+            id: format!("step_{}_{}", handle, module.get_info().id),
             module,
             state: PipelineStepState::Created,
         }

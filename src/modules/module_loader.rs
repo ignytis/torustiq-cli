@@ -12,12 +12,12 @@ use torustiq_common::ffi::{
 
 use crate::{
     config::PipelineDefinition,
-    module::Module,
+    modules::step_module::StepModule,
 };
 
 /// Returns a HashMap of modules referenced in the pipeline definition
-pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<HashMap<String, Arc<Module>>, String> {
-    let mut modules: HashMap<String, Arc<Module>> = HashMap::new();
+pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<HashMap<String, Arc<StepModule>>, String> {
+    let mut modules: HashMap<String, Arc<StepModule>> = HashMap::new();
     let required_module_ids: Vec<String> = pipeline_def.steps
         .iter()
         .map(|step| step.handler.clone())
@@ -56,7 +56,7 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> R
             continue
         }
 
-        let module = match Module::try_from(lib) {
+        let module = match StepModule::try_from(lib) {
             Ok(m) => m,
             Err(e) => return Err(format!("Failed to initialize a module from library '{}': {}", path_str, e)),
         };

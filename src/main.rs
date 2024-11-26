@@ -1,8 +1,7 @@
 pub mod callbacks;
 pub mod cli;
 pub mod config;
-pub mod module;
-pub mod module_loader;
+pub mod modules;
 pub mod pipeline;
 pub mod shutdown;
 pub mod xthread;
@@ -20,7 +19,7 @@ use xthread::PIPELINE;
 use crate::{
     cli::CliArgs,
     config::PipelineDefinition,
-    module_loader::load_modules,
+    modules::module_loader::load_modules,
     pipeline::pipeline::Pipeline
 };
 
