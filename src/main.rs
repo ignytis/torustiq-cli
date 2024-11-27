@@ -25,6 +25,7 @@ use crate::{
 
 /// Creates a pipeline from pipeline definition file
 fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
+    debug!("Creating a pipeline from definition file: {}", &args.pipeline_file);
     let pipeline_def: String = match fs::read_to_string(&args.pipeline_file) {
         Ok(c) => c,
         Err(e) => return Err(format!("Cannot open the pipeline file: '{}'. {}", args.pipeline_file, e)),
@@ -34,14 +35,12 @@ fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
         Err(e) => return Err(format!("Cannot parse the pipeline: '{}'. {}", args.pipeline_file, e)),
     };
 
-    let modules = load_modules(&args.module_dir, &pipeline_def)?;
-    info!("All modules are loaded. Initialization of modules...");
-    for module in modules.values() {
-        debug!("Initializing module '{}'...", module.get_id());
-        module.init();
-    }
+    let module_ids_required = pipeline_def.get_module_ids_in_use();
+    let loaded_libs = load_modules(&args.module_dir, module_ids_required)?;
+    info!("All modules are loaded.");
+    loaded_libs.init();
 
-    let pipeline = match Pipeline::try_from((&pipeline_def, &modules)) {
+    let pipeline = match Pipeline::try_from((&pipeline_def, &loaded_libs)) {
         Ok(p) => p,
         Err(e) => return Err(format!("Failed to create a pipeline from definition: {}", e))
     };

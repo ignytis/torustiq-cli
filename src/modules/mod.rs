@@ -10,18 +10,46 @@ use libloading::os::windows::Symbol as RawSymbol;
 
 use torustiq_common::ffi::{types::{
     functions as fn_defs,
-    module::ModuleInfo as FfiModuleInfo
+    module::ModuleInfo as FfiModuleInfo,
+    module::ModuleKind as FfiModuleKind,
 }, utils::strings::cchar_to_string};
 
+
+/// Defines the kind of module.
+pub enum ModuleKind {
+    /// A pipeline step module. Extracts, transforms, loads the data.
+    Step,
+    /// An event listener module. Reacts to application events.
+    EventListener,
+}
+
 pub struct ModuleInfo {
+    /// API version is used to verify the compatibility between host app and module
+    pub api_version: u32,
+    /// Module ID must be unique for all modules.
+    /// This ID is used to match configuration with loaded modules.
+    /// It's not recommended to use upper-case characters, special symbols and spaces in ID.
     pub id: String,
+    pub kind: ModuleKind,
+    /// A human-readable name. Unlike ID, it might contain multiple words
     pub name: String,
+}
+
+impl From<FfiModuleKind> for ModuleKind {
+    fn from(value: FfiModuleKind) -> ModuleKind {
+        match value {
+            FfiModuleKind::EventListener => ModuleKind::EventListener,
+            FfiModuleKind::Step => ModuleKind::Step,
+        }
+    }
 }
 
 impl From<FfiModuleInfo> for ModuleInfo {
     fn from(value: FfiModuleInfo) -> ModuleInfo {
         ModuleInfo {
+            api_version: value.api_version,
             id: cchar_to_string(value.id),
+            kind: value.kind.into(),
             name: cchar_to_string(value.name),
         }
     }

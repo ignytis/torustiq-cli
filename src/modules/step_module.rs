@@ -1,8 +1,5 @@
 /// Pipeline step modules
 
-use std::error::Error;
-
-use libloading::Library;
 #[cfg(unix)]
 use libloading::os::unix::Symbol as RawSymbol;
 #[cfg(windows)]
@@ -21,69 +18,19 @@ use torustiq_common::ffi::{
 
 use crate::modules::{BaseModule, ModuleInfo};
 
-/// A helper structrure for loading raw symbols
-struct RawPointerLoader<'a> {
-    lib: &'a Library
-}
-
-impl<'a> RawPointerLoader<'a> {
-    fn new(lib: &'a Library) -> Self {
-        RawPointerLoader { lib }
-    }
-
-    pub fn load<T>(&self, symbol: &[u8]) -> Result<RawSymbol<T>, Box<dyn Error>> {
-        let s = unsafe { self.lib.get::<T>(symbol) };
-        let s = match s {
-            Ok(s) => s,
-            Err(e) => return Err(Box::new(e)),
-        };
-        let s = unsafe {s.into_raw()};
-        Ok(s)
-    }
-}
-
 /// A pipeline step module.
 /// This kind of modules is involved directly in data processing:
 /// it produces, transforms, or writes the data to destination
 pub struct StepModule {
-    base: BaseModule,
+    pub base: BaseModule,
 
-    step_configure_ptr: RawSymbol<fn_defs::ModuleStepConfigureFn>,
-    step_set_param_ptr: RawSymbol<fn_defs::ModuleStepSetParamFn>,
+    pub step_configure_ptr: RawSymbol<fn_defs::ModuleStepConfigureFn>,
+    pub step_set_param_ptr: RawSymbol<fn_defs::ModuleStepSetParamFn>,
     pub step_shutdown_ptr: RawSymbol<fn_defs::ModuleStepShutdownFn>,
-    step_start_ptr: RawSymbol<fn_defs::ModuleStepStartFn>,
+    pub step_start_ptr: RawSymbol<fn_defs::ModuleStepStartFn>,
     pub step_process_record_ptr: RawSymbol<fn_defs::ModuleProcessRecordFn>,
     pub free_char_ptr: RawSymbol<fn_defs::ModuleFreeCharPtrFn>,
     pub free_record_ptr: RawSymbol<fn_defs::ModuleFreeRecordFn>,
-}
-
-impl TryFrom<Library> for StepModule {
-    type Error = Box<dyn Error>;
-
-    fn try_from(value: Library) -> Result<StepModule, Self::Error> {
-        let loader = RawPointerLoader::new(&value);
-        let module_info: ModuleInfo = {
-            let torustiq_module_get_info: RawSymbol<fn_defs::ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
-            torustiq_module_get_info()
-        }.into();
-
-        Ok(StepModule {
-            step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
-            step_set_param_ptr: loader.load(b"torustiq_module_step_set_param")?,
-            step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
-            step_start_ptr: loader.load(b"torustiq_module_step_start")?,
-            step_process_record_ptr: loader.load(b"torustiq_module_step_process_record")?,
-            free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
-            free_record_ptr: loader.load(b"torustiq_module_free_record")?,
-            
-            base: BaseModule {
-                init_ptr: loader.load(b"torustiq_module_init")?,
-
-                module_info,
-                _lib: value,
-            },
-        })
-    }
 }
 
 impl StepModule {

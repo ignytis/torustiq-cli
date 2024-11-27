@@ -1,10 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Serialize, Deserialize};
 
-/// A step in pipeline: source, destination, transformation, etc
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct PipelineStepDefinition {
+pub struct ModuleDefinition {
     pub name: String,
     pub handler: String,
     pub args: Option<HashMap<String, String>>,
@@ -14,5 +13,31 @@ pub struct PipelineStepDefinition {
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct PipelineDefinition {
     pub description: Option<String>,
-    pub steps: Vec<PipelineStepDefinition>,
+    /// Steps: source, destination, transformations.
+    /// The data processing happens here
+    pub steps: Vec<ModuleDefinition>,
+    /// Event listeners handle application events: processed records, failures, etc
+    pub event_listeners: Option<Vec<ModuleDefinition>>,
+}
+
+impl PipelineDefinition {
+    /// Returns a vector of module ID-s which are used by pipeline
+    pub fn get_module_ids_in_use(&self) -> Vec<String> {
+        let required_module_ids: Vec<String> = { // collect all module IDs from pipeline definition
+            let event_listener_modules = match &self.event_listeners {
+                Some(l) => l,
+                None => &Vec::new(),
+            };
+            let step_modules = &self.steps;
+            step_modules
+                .into_iter()
+                .chain(event_listener_modules.into_iter())
+                .map(|step| step.handler.clone())
+                .collect::<HashSet<_>>() // deduplicate
+                .into_iter()
+                .collect()
+        };
+
+        required_module_ids
+    }
 }

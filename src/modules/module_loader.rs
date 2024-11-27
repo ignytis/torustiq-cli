@@ -1,27 +1,43 @@
-use std::{
-    collections::HashMap,
-    fs, sync::Arc};
+use std::{collections::HashMap, fs, sync::Arc};
+use std::error::Error;
 
-use log::debug;
 use libloading::{Library, Symbol};
+#[cfg(unix)]
+use libloading::os::unix::Symbol as RawSymbol;
+#[cfg(windows)]
+use libloading::os::windows::Symbol as RawSymbol;
 
-use torustiq_common::ffi::{
-    types::functions::ModuleGetInfoFn,
-    utils::strings::cchar_to_string,
+use log::{debug, info, warn};
+
+use torustiq_common::{
+    ffi::{
+        types::functions as fn_defs,
+        utils::strings::cchar_to_string,
+    },
+    CURRENT_API_VERSION
 };
 
-use crate::{
-    config::PipelineDefinition,
-    modules::step_module::StepModule,
-};
+use crate::modules::{BaseModule, ModuleInfo, ModuleKind, step_module::StepModule};
+
+#[derive(Default)]
+pub struct LoadedLibraries {
+    pub steps: HashMap<String, Arc<StepModule>>
+}
+
+impl LoadedLibraries {
+    pub fn init(&self) {
+        info!("Initialization of modules...");
+        for module in self.steps.values() {
+            debug!("Initializing step module '{}' (name: '{}')...", module.get_info().id, module.get_info().name);
+            module.init();
+        }
+    }
+}
 
 /// Returns a HashMap of modules referenced in the pipeline definition
-pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> Result<HashMap<String, Arc<StepModule>>, String> {
-    let mut modules: HashMap<String, Arc<StepModule>> = HashMap::new();
-    let required_module_ids: Vec<String> = pipeline_def.steps
-        .iter()
-        .map(|step| step.handler.clone())
-        .collect();
+pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Result<LoadedLibraries, String> {
+    let mut loaded_libs = LoadedLibraries::default();
+    let mut loaded_module_ids: Vec<String> = Vec::new();
 
     let dir = match fs::read_dir(module_dir) {
         Ok(d) => d,
@@ -43,12 +59,17 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> R
                 Ok(l) => l,
                 Err(e) => return Err(format!("Failed to load a library at path '{}': {}", path_str, e)),
             };
-            let torustiq_module_get_info: Symbol<ModuleGetInfoFn> = match lib.get(b"torustiq_module_get_info") {
+            let torustiq_module_get_info: Symbol<fn_defs::ModuleGetInfoFn> = match lib.get(b"torustiq_module_get_info") {
                 Ok(s) => s,
                 Err(e) => return Err(format!("Failed to load function 'torustiq_module_get_info' from library '{}': {}", path_str, e)),
             };
             (torustiq_module_get_info(), lib)
         };
+        if module_info.api_version != CURRENT_API_VERSION {
+            warn!("Library '{}' is skipped because it has API version {} which is incompatible with current application's API version {}",
+                path_str, module_info.api_version, CURRENT_API_VERSION);
+            continue
+        }
         let module_id = cchar_to_string(module_info.id);
         debug!("Module at path {} identified: {}", path_str, module_id);
         if !required_module_ids.contains(&module_id) {
@@ -56,15 +77,18 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> R
             continue
         }
 
-        let module = match StepModule::try_from(lib) {
-            Ok(m) => m,
+        match load_module(lib) {
+            Ok(loaded_lib) => {
+                match loaded_lib {
+                    LoadedLibrary::Step(s) => loaded_libs.steps.insert(module_id.clone(), Arc::from(s)),
+                };
+                loaded_module_ids.push(module_id.clone());
+                debug!("Module '{}' is loaded.", module_id);
+            },
             Err(e) => return Err(format!("Failed to initialize a module from library '{}': {}", path_str, e)),
         };
-        modules.insert(module_id.clone(), Arc::from(module));
-        debug!("Module '{}' is loaded.", module_id);
     }
 
-    let loaded_module_ids: Vec<String> = modules.keys().cloned().collect();
     let missing_module_ids: Vec<String> = required_module_ids
         .into_iter()
         .filter(|item| !loaded_module_ids.contains(item))
@@ -76,5 +100,62 @@ pub fn load_modules(module_dir: &String, pipeline_def: &PipelineDefinition) -> R
         return Err(format!("Failed to load modules: {}", missing_module_ids.join(", ")));
     }
 
-    Ok(modules)
+    Ok(loaded_libs)
+}
+
+/// Loads a module from library
+fn load_module(lib: Library) -> Result<LoadedLibrary, Box<dyn Error>> {
+    let loader = RawPointerLoader::new(&lib);
+    let module_info: ModuleInfo = {
+        let torustiq_module_get_info: RawSymbol<fn_defs::ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
+        torustiq_module_get_info()
+    }.into();
+
+    let module = match module_info.kind {
+        ModuleKind::Step => LoadedLibrary::Step(StepModule {
+            step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
+            step_set_param_ptr: loader.load(b"torustiq_module_step_set_param")?,
+            step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
+            step_start_ptr: loader.load(b"torustiq_module_step_start")?,
+            step_process_record_ptr: loader.load(b"torustiq_module_step_process_record")?,
+            free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+            free_record_ptr: loader.load(b"torustiq_module_free_record")?,
+
+            base: BaseModule {
+                init_ptr: loader.load(b"torustiq_module_init")?,
+
+                module_info,
+                _lib: lib,
+            },
+        }),
+        _ => return Err("Unsupportred module kind detected".into()) // must not happen after all ModuleKinds are implemented
+    };
+
+    Ok(module)
+}
+
+/// Loads raw pointers to functions from library
+struct RawPointerLoader<'a> {
+    lib: &'a Library
+}
+
+impl<'a> RawPointerLoader<'a> {
+    fn new(lib: &'a Library) -> Self {
+        RawPointerLoader { lib }
+    }
+
+    /// Loads a function from library
+    pub fn load<T>(&self, symbol: &[u8]) -> Result<RawSymbol<T>, Box<dyn Error>> {
+        let s = unsafe { self.lib.get::<T>(symbol) };
+        let s = match s {
+            Ok(s) => s,
+            Err(e) => return Err(Box::new(e)),
+        };
+        let s = unsafe {s.into_raw()};
+        Ok(s)
+    }
+}
+
+pub enum LoadedLibrary {
+    Step(StepModule),
 }

@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     sync::{
         mpsc::{channel, Receiver},
         Arc, Mutex
@@ -20,15 +19,10 @@ use torustiq_common::ffi::{
 use crate::{
     callbacks,
     config::PipelineDefinition,
-    modules::step_module::StepModule,
+    modules::module_loader::LoadedLibraries,
     pipeline::pipeline_step::PipelineStep,
     xthread::{SystemMessage, FREE_BUF, PIPELINE, SENDERS, SYSTEM_MESSAGES}
 };
-
-pub struct Pipeline {
-    pub description: Option<String>,
-    pub steps: Vec<Arc<Mutex<PipelineStep>>>,
-}
 
 /// Starts a system command thread.
 /// System command threads change the state of pipeline. For instance, a command thread can terminate the pipeline.
@@ -115,6 +109,11 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
         // Processed all the data from upstream. Terminating the current step
         step_shutdown_ptr(i_receiver_ffi);
     });
+}
+
+pub struct Pipeline {
+    pub description: Option<String>,
+    pub steps: Vec<Arc<Mutex<PipelineStep>>>,
 }
 
 impl Pipeline {
@@ -237,15 +236,15 @@ impl Pipeline {
     }
 }
 
-impl TryFrom<(&PipelineDefinition, &HashMap<String, Arc<StepModule>>)> for Pipeline {
-    fn try_from(value: (&PipelineDefinition, &HashMap<String, Arc<StepModule>>)) -> Result<Self, Self::Error> {
-        let (definition, modules) = value;
+impl TryFrom<(&PipelineDefinition, &LoadedLibraries)> for Pipeline {
+    fn try_from(value: (&PipelineDefinition, &LoadedLibraries)) -> Result<Self, Self::Error> {
+        let (definition, loaded_libs) = value;
         // Validate references to modules
         let mut pipeline = Pipeline::new();
         pipeline.description = definition.description.clone();
 
         for step_def in &definition.steps {
-            if modules.get(&step_def.handler).is_none() {
+            if loaded_libs.steps.get(&step_def.handler).is_none() {
                 return Err(format!("Module not found: {}", &step_def.handler));
             }
         }
@@ -256,7 +255,7 @@ impl TryFrom<(&PipelineDefinition, &HashMap<String, Arc<StepModule>>)> for Pipel
             .enumerate()
             .map(|(step_index, step_def)| {
                 let s = PipelineStep::from_module(
-                    modules.get(&step_def.handler).unwrap().clone(),
+                    loaded_libs.steps.get(&step_def.handler).unwrap().clone(),
                     step_index, step_def.args.clone());
                 Arc::new(Mutex::new(s))
             })
