@@ -6,12 +6,15 @@ use std::{
     thread, time::Duration
 };
 
-use log::{error, info};
+use log::{debug, error, info};
 
 use torustiq_common::ffi::{
     shared::do_free_record,
     types::{
-        module::{ModuleProcessRecordFnResult, ModuleStepConfigureArgs, PipelineStepKind, Record},
+        module::{
+            ModuleProcessRecordFnResult, ModulePipelineStepConfigureArgs,
+            PipelineStepKind, Record
+        },
         std_types, traits::ShallowCopy
     }, utils::strings::cchar_to_string
 };
@@ -23,6 +26,8 @@ use crate::{
     pipeline::pipeline_step::PipelineStep,
     xthread::{SystemMessage, FREE_BUF, PIPELINE, SENDERS, SYSTEM_MESSAGES}
 };
+
+use super::event_listener::EventListener;
 
 /// Starts a system command thread.
 /// System command threads change the state of pipeline. For instance, a command thread can terminate the pipeline.
@@ -58,7 +63,7 @@ fn start_system_command_thread(m_rx: Receiver<SystemMessage>) {
                         }
                     };
                     let mut pipeline_step = pipeline_step_arc.lock().unwrap();
-                    pipeline_step.set_state_terminated();
+                    pipeline_step.component.set_state_terminated();
                 }
             }
         }
@@ -71,11 +76,11 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
     let (free_char_ptr, step_process_record_ptr, step_shutdown_ptr, i_receiver_ffi, step_id) = {
         let step_receiver = step_receiver_arc.lock().unwrap();
         (
-            step_receiver.module.free_char_ptr.clone(),
+            step_receiver.module.base.free_char_ptr.clone(),
             step_receiver.module.step_process_record_ptr.clone(),
-            step_receiver.module.step_shutdown_ptr.clone(),
-            u32::try_from(step_receiver.handle).unwrap(),
-            step_receiver.id.clone(),
+            step_receiver.module.base.step_shutdown_ptr.clone(),
+            u32::try_from(step_receiver.component.handle).unwrap(),
+            step_receiver.component.id.clone(),
         )
     };
     thread::spawn(move || {
@@ -83,7 +88,7 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
             let record = match rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(r) => r,
                 Err(_) => { // timeout
-                    if step_sender_arc.lock().unwrap().is_terminated() { // no messages because the source is shut down
+                    if step_sender_arc.lock().unwrap().component.is_terminated() { // no messages because the source is shut down
                         break;
                     } else {
                         continue; // no messages, but source is online
@@ -111,17 +116,16 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
     });
 }
 
+#[derive(Default)]
 pub struct Pipeline {
     pub description: Option<String>,
+    pub event_listeners: Vec<Arc<Mutex<EventListener>>>,
     pub steps: Vec<Arc<Mutex<PipelineStep>>>,
 }
 
 impl Pipeline {
     pub fn new() -> Pipeline {
-        Pipeline {
-            description: Some(String::new()),
-            steps: Vec::new(),
-        }
+        Pipeline::default()
     }
 
     /// Validates the pipeline
@@ -141,20 +145,22 @@ impl Pipeline {
         let last_step_index = self.steps.len() - 1;
         for (step_index, step_mtx) in self.steps.iter_mut().enumerate() {
             let mut step = step_mtx.lock().unwrap();
-            let step_handle = step.handle;
-            for (k, v) in &step.args { // set arguments for step
+            let step_handle = step.component.handle;
+            for (k, v) in &step.component.args { // set arguments for step
                 step.module.set_step_param(step_handle, k, v);
             }
             let kind = if 0 == step_index { PipelineStepKind::Source }
                 else if last_step_index == step_index { PipelineStepKind::Destination }
                 else { PipelineStepKind::Transformation };
-            step.configure(ModuleStepConfigureArgs{
+            step.configure(ModulePipelineStepConfigureArgs{
                 kind,
                 step_handle: std_types::Uint::try_from(step_handle).unwrap(),
                 on_step_terminate_cb: callbacks::on_step_terminate_cb,
                 on_data_received_fn: callbacks::on_rcv_cb,
             })?;
         }
+        // for (step_index, step_mtx) in self..iter_mut().enumerate() {
+        // }
         Ok(())
     }
 
@@ -195,13 +201,23 @@ impl Pipeline {
     /// Starts the data processing routines inside each step
     pub fn start_steps(&self) -> Result<(), String> {
         info!("Starting steps...");
+        for step_mtx in &self.event_listeners {
+            let step = step_mtx.lock().unwrap();
+            let step_handle = step.component.handle;
+            match step.module.start_step(step_handle.into()) {
+                Ok(_) => debug!("Started event listener '{}'", step.component.id),
+                Err(msg) => {
+                    return Err(format!("Failed to start event listener '{}': {}", step.component.id, msg));
+                }
+            }
+        }
         for step_mtx in &self.steps {
             let step = step_mtx.lock().unwrap();
-            let step_handle = step.handle;
+            let step_handle = step.component.handle;
             match step.module.start_step(step_handle.into()) {
-                Ok(_) => {},
+                Ok(_) => debug!("Started pipeline step '{}'", step.component.id),
                 Err(msg) => {
-                    return Err(format!("Failed to start step {}: {}", step.id, msg));
+                    return Err(format!("Failed to start pipeline step '{}': {}", step.component.id, msg));
                 }
             }
         }
@@ -213,7 +229,7 @@ impl Pipeline {
     pub fn is_running(&self) -> bool {
         let steps_total = self.steps.len();
         let steps_terminated = self.steps.iter()
-            .map(|step| match step.lock().unwrap().is_terminated() { true => 1, false => 0 })
+            .map(|step| match step.lock().unwrap().component.is_terminated() { true => 1, false => 0 })
             .fold(0, |acc, e| acc + e );
 
         steps_terminated < steps_total
@@ -221,7 +237,7 @@ impl Pipeline {
 
     pub fn get_step_by_handle_mut(&self, handle: usize) -> Option<Arc<Mutex<PipelineStep>>> {
         for h in &self.steps {
-            if h.lock().unwrap().handle == handle {
+            if h.lock().unwrap().component.handle == handle {
                 return Some(h.clone())
             }
         }
@@ -244,19 +260,35 @@ impl TryFrom<(&PipelineDefinition, &LoadedLibraries)> for Pipeline {
         pipeline.description = definition.description.clone();
 
         for step_def in &definition.steps {
-            if loaded_libs.steps.get(&step_def.handler).is_none() {
+            if loaded_libs.pipeline.get(&step_def.handler).is_none() {
                 return Err(format!("Module not found: {}", &step_def.handler));
             }
         }
 
+        let mut step_index: usize = 0;
         pipeline.steps = definition
             .steps
             .iter()
-            .enumerate()
-            .map(|(step_index, step_def)| {
+            // .enumerate()
+            .map(|step_def| {
                 let s = PipelineStep::from_module(
-                    loaded_libs.steps.get(&step_def.handler).unwrap().clone(),
+                    loaded_libs.pipeline.get(&step_def.handler).unwrap().clone(),
                     step_index, step_def.args.clone());
+                step_index += 1;
+                Arc::new(Mutex::new(s))
+            })
+            .collect();
+        pipeline.event_listeners = definition
+            .event_listeners
+            .as_ref()
+            .unwrap_or(&Vec::new())
+            .iter()
+            // .enumerate()
+            .map(|step_def| {
+                let s = EventListener::from_module(
+                    loaded_libs.event_listeners.get(&step_def.handler).unwrap().clone(),
+                    step_index, step_def.args.clone());
+                step_index += 1;
                 Arc::new(Mutex::new(s))
             })
             .collect();

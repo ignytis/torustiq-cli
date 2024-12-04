@@ -1,5 +1,6 @@
+pub mod event_listener;
 pub mod module_loader;
-pub mod step_module;
+pub mod pipeline;
 
 use libloading::Library;
 #[cfg(unix)]
@@ -8,19 +9,21 @@ use libloading::os::unix::Symbol as RawSymbol;
 use libloading::os::windows::Symbol as RawSymbol;
 
 
-use torustiq_common::ffi::{types::{
-    functions as fn_defs,
-    module::ModuleInfo as FfiModuleInfo,
-    module::ModuleKind as FfiModuleKind,
-}, utils::strings::cchar_to_string};
+use torustiq_common::ffi::{
+    types::{
+        functions as fn_defs,
+        module::{ModuleInfo as FfiModuleInfo, ModuleKind as FfiModuleKind, StepStartFnResult},
+    },
+    utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}
+};
 
 
 /// Defines the kind of module.
 pub enum ModuleKind {
-    /// A pipeline step module. Extracts, transforms, loads the data.
-    Step,
     /// An event listener module. Reacts to application events.
     EventListener,
+    /// A pipeline. Extracts, transforms, loads the data.
+    Pipeline,
 }
 
 pub struct ModuleInfo {
@@ -39,7 +42,7 @@ impl From<FfiModuleKind> for ModuleKind {
     fn from(value: FfiModuleKind) -> ModuleKind {
         match value {
             FfiModuleKind::EventListener => ModuleKind::EventListener,
-            FfiModuleKind::Step => ModuleKind::Step,
+            FfiModuleKind::Pipeline => ModuleKind::Pipeline,
         }
     }
 }
@@ -59,6 +62,10 @@ impl From<FfiModuleInfo> for ModuleInfo {
 pub struct BaseModule {
     /// A pointer to torustiq_module_init function
     init_ptr: RawSymbol<fn_defs::ModuleInitFn>,
+    pub step_set_param_ptr: RawSymbol<fn_defs::StepSetParamFn>,
+    pub step_shutdown_ptr: RawSymbol<fn_defs::ModuleStepShutdownFn>,
+    pub step_start_ptr: RawSymbol<fn_defs::StepStartFn>,
+    pub free_char_ptr: RawSymbol<fn_defs::ModuleFreeCharPtrFn>,
 
     /// A library handle needs to be stored in order to keep the imported functions available
     _lib: Library,
@@ -73,5 +80,33 @@ impl BaseModule {
     /// General initialization of module
     pub fn init(&self) {
         (self.init_ptr)()
+    }
+
+    pub fn shutdown(&self, step_handle: usize) {
+        (self.step_shutdown_ptr)(usize::try_into(step_handle).unwrap());
+    }
+
+    pub fn set_step_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
+        let k = string_to_cchar(k);
+        let v = string_to_cchar(v);
+        (self.step_set_param_ptr)(usize::try_into(handle).unwrap(), k, v);
+
+        cchar_const_deallocate(k);
+        cchar_const_deallocate(v);
+    }
+
+    pub fn start_step(&self, step_handle: usize) -> Result<(), String> {
+        match (self.step_start_ptr)(usize::try_into(step_handle).unwrap()) {
+            StepStartFnResult::Ok => Ok(()),
+            StepStartFnResult::ErrorMisc(e) => {
+                let err_string = cchar_to_string(e.clone());
+                (self.free_char_ptr)(e);
+                Err(err_string)
+            },
+        }
+    }
+
+    pub fn free_c_char(&self, c: *const i8) {
+        (self.free_char_ptr)(c);
     }
 }

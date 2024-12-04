@@ -1,31 +1,29 @@
-use std::{
-    collections::HashMap, sync::Arc,
-};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use torustiq_common::ffi::types::module::ModulePipelineStepConfigureArgs;
 
 use crate::{
-    modules::pipeline::PipelineModule,
+    modules::event_listener::EventListenerModule,
     pipeline::{PipelineComponent, PipelineComponentState},
 };
 
-/// A single step in pipeline
-pub struct PipelineStep {
-    /// Base pipeline component attributes
+/// An event listener for pipeline events
+pub struct EventListener {
     pub component: PipelineComponent,
     /// A reference to module library
-    pub module: Arc<PipelineModule>,
+    pub module: Arc<EventListenerModule>,
 }
 
-impl PipelineStep {
+impl EventListener {
     /// Initializes a step from module (=dynamic library).
     /// Index is a step index in pipeline. Needed to format a unique step ID
-    pub fn from_module(module: Arc<PipelineModule>, handle: usize, args: Option<HashMap<String, String>>) -> PipelineStep {
-        PipelineStep {
+    pub fn from_module(module: Arc<EventListenerModule>, handle: usize, args: Option<HashMap<String, String>>) -> EventListener {
+        EventListener {
             component: PipelineComponent {
                 args: args.unwrap_or(HashMap::new()),
                 handle,
-                id: format!("step_{}_{}", handle, module.get_info().id),
+                id: format!("evt_listener_{}_{}", handle, module.get_info().id),
                 state: PipelineComponentState::Created,
             },
             module,

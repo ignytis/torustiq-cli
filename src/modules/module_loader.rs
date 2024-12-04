@@ -17,17 +17,26 @@ use torustiq_common::{
     CURRENT_API_VERSION
 };
 
-use crate::modules::{BaseModule, ModuleInfo, ModuleKind, step_module::StepModule};
+use crate::modules::{
+    BaseModule, ModuleInfo, ModuleKind,
+    pipeline::PipelineModule,
+    event_listener::EventListenerModule
+};
 
 #[derive(Default)]
 pub struct LoadedLibraries {
-    pub steps: HashMap<String, Arc<StepModule>>
+    pub event_listeners: HashMap<String, Arc<EventListenerModule>>,
+    pub pipeline: HashMap<String, Arc<PipelineModule>>,
 }
 
 impl LoadedLibraries {
     pub fn init(&self) {
         info!("Initialization of modules...");
-        for module in self.steps.values() {
+        for module in self.event_listeners.values() {
+            debug!("Initializing event listener module '{}' (name: '{}')...", module.get_info().id, module.get_info().name);
+            module.init();
+        }
+        for module in self.pipeline.values() {
             debug!("Initializing step module '{}' (name: '{}')...", module.get_info().id, module.get_info().name);
             module.init();
         }
@@ -80,7 +89,12 @@ pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Re
         match load_module(lib) {
             Ok(loaded_lib) => {
                 match loaded_lib {
-                    LoadedLibrary::Step(s) => loaded_libs.steps.insert(module_id.clone(), Arc::from(s)),
+                    LoadedLibrary::Pipeline(p) => {
+                        loaded_libs.pipeline.insert(module_id.clone(), Arc::from(p));
+                    },
+                    LoadedLibrary::EventListener(l) => {
+                        loaded_libs.event_listeners.insert(module_id.clone(), Arc::from(l));
+                    },
                 };
                 loaded_module_ids.push(module_id.clone());
                 debug!("Module '{}' is loaded.", module_id);
@@ -112,23 +126,40 @@ fn load_module(lib: Library) -> Result<LoadedLibrary, Box<dyn Error>> {
     }.into();
 
     let module = match module_info.kind {
-        ModuleKind::Step => LoadedLibrary::Step(StepModule {
+        ModuleKind::Pipeline => LoadedLibrary::Pipeline(PipelineModule {
             step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
-            step_set_param_ptr: loader.load(b"torustiq_module_step_set_param")?,
-            step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
-            step_start_ptr: loader.load(b"torustiq_module_step_start")?,
             step_process_record_ptr: loader.load(b"torustiq_module_step_process_record")?,
-            free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
             free_record_ptr: loader.load(b"torustiq_module_free_record")?,
 
             base: BaseModule {
                 init_ptr: loader.load(b"torustiq_module_init")?,
+                step_set_param_ptr: loader.load(b"torustiq_step_set_param")?,
+                step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
+                step_start_ptr: loader.load(b"torustiq_module_step_start")?,
+                free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
 
                 module_info,
                 _lib: lib,
             },
         }),
-        _ => return Err("Unsupportred module kind detected".into()) // must not happen after all ModuleKinds are implemented
+        ModuleKind::EventListener => LoadedLibrary::EventListener(EventListenerModule {
+            step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
+            step_set_param_ptr: loader.load(b"torustiq_step_set_param")?,
+            step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
+            step_start_ptr: loader.load(b"torustiq_module_step_start")?,
+            free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+
+            base: BaseModule {
+                init_ptr: loader.load(b"torustiq_module_init")?,
+                step_set_param_ptr: loader.load(b"torustiq_step_set_param")?,
+                step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
+                step_start_ptr: loader.load(b"torustiq_module_step_start")?,
+                free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+
+                module_info,
+                _lib: lib,
+            },
+        })
     };
 
     Ok(module)
@@ -157,5 +188,6 @@ impl<'a> RawPointerLoader<'a> {
 }
 
 pub enum LoadedLibrary {
-    Step(StepModule),
+    EventListener(EventListenerModule),
+    Pipeline(PipelineModule),
 }
