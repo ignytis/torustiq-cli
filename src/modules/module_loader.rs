@@ -131,16 +131,7 @@ fn load_module(lib: Library) -> Result<LoadedLibrary, Box<dyn Error>> {
             step_process_record_ptr: loader.load(b"torustiq_module_step_process_record")?,
             free_record_ptr: loader.load(b"torustiq_module_free_record")?,
 
-            base: BaseModule {
-                init_ptr: loader.load(b"torustiq_module_init")?,
-                step_set_param_ptr: loader.load(b"torustiq_step_set_param")?,
-                step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
-                step_start_ptr: loader.load(b"torustiq_module_step_start")?,
-                free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
-
-                module_info,
-                _lib: lib,
-            },
+            base: create_base_module(lib, module_info)?,
         }),
         ModuleKind::EventListener => LoadedLibrary::EventListener(EventListenerModule {
             step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
@@ -149,16 +140,7 @@ fn load_module(lib: Library) -> Result<LoadedLibrary, Box<dyn Error>> {
             step_start_ptr: loader.load(b"torustiq_module_step_start")?,
             free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
 
-            base: BaseModule {
-                init_ptr: loader.load(b"torustiq_module_init")?,
-                step_set_param_ptr: loader.load(b"torustiq_step_set_param")?,
-                step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
-                step_start_ptr: loader.load(b"torustiq_module_step_start")?,
-                free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
-
-                module_info,
-                _lib: lib,
-            },
+            base: create_base_module(lib, module_info)?,
         })
     };
 
@@ -190,4 +172,20 @@ impl<'a> RawPointerLoader<'a> {
 pub enum LoadedLibrary {
     EventListener(EventListenerModule),
     Pipeline(PipelineModule),
+}
+
+/// Consumes library + module info and creates an instace of base module
+fn create_base_module(lib: Library, module_info: ModuleInfo) -> Result<BaseModule, Box<dyn Error>> {
+    let loader = RawPointerLoader::new(&lib);
+    let m = BaseModule {
+        init_ptr: loader.load(b"torustiq_module_init")?,
+        step_set_param_ptr: loader.load(b"torustiq_step_set_param")?,
+        step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
+        step_start_ptr: loader.load(b"torustiq_module_step_start")?,
+        free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+
+        module_info,
+        _lib: lib,
+    };
+    Ok(m)
 }
