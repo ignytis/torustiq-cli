@@ -18,10 +18,9 @@ pub extern "C"  fn on_step_terminate_cb(step_handle: ModuleStepHandle) {
             return
         }
     };
-    match msg_chan.send(SystemMessage::TerminateStep(step_handle)) {
-        Ok(_) => {},
-        Err(e) => error!("Termination callback failure: cannot send a termination message ({})", e)
-    };
+    if let Err(e) = msg_chan.send(SystemMessage::TerminateStep(step_handle)) {
+        error!("Termination callback failure: cannot send a termination message ({})", e);
+    }
 }
 
 /// Steps use this function to pass the produced record to dependent step
@@ -32,13 +31,10 @@ pub extern "C" fn on_rcv_cb(record: Record, step_handle: ModuleStepHandle) {
     };
 
     // Sends a cloned record to further processing and deallocates the original record
-    match sender.send(record.clone()) {
-        Ok(_) => {},
-        Err(e) => {
-            error!("Failed to send a record from step '{}' to the next steep: {}", step_handle, e);
-            return;
-        }
-    };
+    if let Err(e) = sender.send(record.clone()) {
+        error!("Failed to send a record from step '{}' to the next steep: {}", step_handle, e);
+        return;
+    }
     let free_buf_fn_map = FREE_BUF.lock().unwrap();
     let free_buf_fn = free_buf_fn_map.get(&step_handle).unwrap();
     free_buf_fn(record);

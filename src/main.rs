@@ -51,9 +51,8 @@ fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
 fn main() {
     init_logger();
     info!("Starting the application...");
-    match init_signal_handler() {
-        Ok(_) => {},
-        Err(msg) => return crash_with_message(msg),
+    if let Err(msg) = init_signal_handler() {
+        return crash_with_message(msg)
     };
 
     let args = CliArgs::do_parse();
@@ -67,25 +66,22 @@ fn main() {
     
     let pipeline_arc = Arc::new(Mutex::new(pipeline));
 
-    match PIPELINE.set(pipeline_arc.clone()) {
-        Ok(_) => {},
-        Err(_) => crash_with_message(format!("Failed to register the pipeline in static context")),
-    };
+    if let Err(_) = PIPELINE.set(pipeline_arc.clone()) {
+        crash_with_message(format!("Failed to register the pipeline in static context"))
+    }
+
     {
         let mut pipeline = pipeline_arc.lock().unwrap();
-        match pipeline.configure_steps() {
-            Err(msg) => return crash_with_message(format!("Cannot configure steps: {}", msg)),
-            _ => {},
+        if let Err(msg) = pipeline.configure_steps() {
+            return crash_with_message(format!("Cannot configure steps: {}", msg));
         };
 
-        match pipeline.start_senders_receivers() {
-            Err(msg) => return crash_with_message(format!("Cannot start the sender and receiver channels: {}", msg)),
-            _ => {},
+        if let Err(msg) = pipeline.start_senders_receivers() {
+            return crash_with_message(format!("Cannot start the sender and receiver channels: {}", msg));
         };
 
-        match pipeline.start_steps() {
-            Err(msg) => return crash_with_message(format!("Cannot start steps: {}", msg)),
-            _ => {},
+        if let Err(msg) = pipeline.start_steps() {
+            return crash_with_message(format!("Cannot start steps: {}", msg))
         };
     }
 

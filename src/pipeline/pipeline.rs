@@ -96,13 +96,10 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
             // - it's used only partially (e.g. metadata only)
             // - it's processed instantly and therefore not stored inside module.
             let record_copy = record.shallow_copy();
-            match step_process_record_ptr(record, i_receiver_ffi) {
-                ModuleProcessRecordFnResult::Err(cerr) => {
-                    let err: String = cchar_to_string(cerr);
-                    error!("Failed to process record in step '{}': {}", step_id, err);
-                    free_char_ptr(cerr);
-                },
-                _ => {},
+            if let ModuleProcessRecordFnResult::Err(cerr) = step_process_record_ptr(record, i_receiver_ffi) {
+                let err: String = cchar_to_string(cerr);
+                error!("Failed to process record in step '{}': {}", step_id, err);
+                free_char_ptr(cerr);
             };
             do_free_record(record_copy);
         }
@@ -165,9 +162,8 @@ impl Pipeline {
         let mut senders = SENDERS.lock().unwrap();
 
         let (m_tx, m_rx) = channel::<SystemMessage>();
-        match SYSTEM_MESSAGES.set(m_tx) {
-            Ok(_) => {},
-            Err(_) => return Err(String::from("Failed to initialize a system message channel"))
+        if let Err(_) = SYSTEM_MESSAGES.set(m_tx) {
+            return Err(String::from("Failed to initialize a system message channel"))
         };
 
         start_system_command_thread(m_rx);
