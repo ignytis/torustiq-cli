@@ -15,13 +15,11 @@ pub fn init_signal_handler() -> Result<(), String> {
                 info!("Shutting down gracefully...");
                 IS_GRACEFUL_SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
 
-                let pipeline = unsafe {
-                    match PIPELINE.get() {
-                        Some(p) => p,
-                        None => {
-                            error!("Cannot receive a pipeline singleton");
-                            return;
-                        }
+                let pipeline = match PIPELINE.get() {
+                    Some(p) => p,
+                    None => {
+                        error!("Cannot receive a pipeline singleton");
+                        return;
                     }
                 };
 

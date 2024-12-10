@@ -43,16 +43,12 @@ fn start_system_command_thread(m_rx: Receiver<SystemMessage>) {
 
             match msg {
                 SystemMessage::TerminateStep(step_handle) => {
-                    let pipeline = unsafe {
-                        match PIPELINE.get_mut() {
-                            Some(p) => {
-                                p.lock().unwrap()
-                            },
-                            None => {
-                                error!("Cannot process the termination callback for step {}: \
-                                    pipeline is not registered in static context", step_handle);
-                                return;
-                            }
+                    let pipeline = match PIPELINE.get() {
+                        Some(p) => p.lock().unwrap(),
+                        None => {
+                            error!("Cannot process the termination callback for step {}: \
+                                pipeline is not registered in static context", step_handle);
+                            return;
                         }
                     };
                     let pipeline_step_arc = match pipeline.get_step_by_handle_mut(usize::try_from(step_handle).unwrap()) {

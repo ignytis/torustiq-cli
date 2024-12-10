@@ -67,13 +67,10 @@ fn main() {
     
     let pipeline_arc = Arc::new(Mutex::new(pipeline));
 
-    unsafe {
-        match PIPELINE.set(pipeline_arc.clone()) {
-            Ok(_) => {},
-            Err(_) => crash_with_message(format!("Failed to register the pipeline in static context")),
-        };
-    }
-
+    match PIPELINE.set(pipeline_arc.clone()) {
+        Ok(_) => {},
+        Err(_) => crash_with_message(format!("Failed to register the pipeline in static context")),
+    };
     {
         let mut pipeline = pipeline_arc.lock().unwrap();
         match pipeline.configure_steps() {
