@@ -2,7 +2,7 @@ use std::{
     collections::HashMap, sync::Arc,
 };
 
-use torustiq_common::ffi::types::module::ModulePipelineStepConfigureArgs;
+use torustiq_common::ffi::types::module::ModulePipelineConfigureArgs;
 
 use crate::{
     modules::pipeline::PipelineModule,
@@ -32,7 +32,7 @@ impl PipelineStep {
         }
     }
 
-    pub fn configure(&mut self, args: ModulePipelineStepConfigureArgs) -> Result<(), String> {
+    pub fn configure(&mut self, args: ModulePipelineConfigureArgs) -> Result<(), String> {
         let _ = self.module.configure_step(args)?;
         self.component.state = PipelineComponentState::Configured;
         Ok(())

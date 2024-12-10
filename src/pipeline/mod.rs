@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use log::debug;
 
-pub mod event_listener;
+pub mod listener;
 pub mod pipeline;
 pub mod pipeline_step;
 

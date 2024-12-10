@@ -20,19 +20,19 @@ use torustiq_common::{
 use crate::modules::{
     BaseModule, ModuleInfo, ModuleKind,
     pipeline::PipelineModule,
-    event_listener::EventListenerModule
+    listener::ListenerModule
 };
 
 #[derive(Default)]
 pub struct LoadedLibraries {
-    pub event_listeners: HashMap<String, Arc<EventListenerModule>>,
+    pub listeners: HashMap<String, Arc<ListenerModule>>,
     pub pipeline: HashMap<String, Arc<PipelineModule>>,
 }
 
 impl LoadedLibraries {
     pub fn init(&self) {
         info!("Initialization of modules...");
-        for module in self.event_listeners.values() {
+        for module in self.listeners.values() {
             debug!("Initializing event listener module '{}' (name: '{}')...", module.get_info().id, module.get_info().name);
             module.init();
         }
@@ -92,8 +92,8 @@ pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Re
                     LoadedLibrary::Pipeline(p) => {
                         loaded_libs.pipeline.insert(module_id.clone(), Arc::from(p));
                     },
-                    LoadedLibrary::EventListener(l) => {
-                        loaded_libs.event_listeners.insert(module_id.clone(), Arc::from(l));
+                    LoadedLibrary::Listener(l) => {
+                        loaded_libs.listeners.insert(module_id.clone(), Arc::from(l));
                     },
                 };
                 loaded_module_ids.push(module_id.clone());
@@ -127,18 +127,14 @@ fn load_module(lib: Library) -> Result<LoadedLibrary, Box<dyn Error>> {
 
     let module = match module_info.kind {
         ModuleKind::Pipeline => LoadedLibrary::Pipeline(PipelineModule {
-            step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
-            step_process_record_ptr: loader.load(b"torustiq_module_step_process_record")?,
-            free_record_ptr: loader.load(b"torustiq_module_free_record")?,
+            configure_ptr: loader.load(b"torustiq_module_pipeline_configure")?,
+            process_record_ptr: loader.load(b"torustiq_module_pipeline_process_record")?,
+            free_record_ptr: loader.load(b"torustiq_module_pipeline_free_record")?,
 
             base: create_base_module(lib, module_info)?,
         }),
-        ModuleKind::EventListener => LoadedLibrary::EventListener(EventListenerModule {
-            step_configure_ptr: loader.load(b"torustiq_module_step_configure")?,
-            step_set_param_ptr: loader.load(b"torustiq_step_set_param")?,
-            step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
-            step_start_ptr: loader.load(b"torustiq_module_step_start")?,
-            free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+        ModuleKind::Listener => LoadedLibrary::Listener(ListenerModule {
+            configure_ptr: loader.load(b"torustiq_module_listener_configure")?,
 
             base: create_base_module(lib, module_info)?,
         })
@@ -170,7 +166,7 @@ impl<'a> RawPointerLoader<'a> {
 }
 
 pub enum LoadedLibrary {
-    EventListener(EventListenerModule),
+    Listener(ListenerModule),
     Pipeline(PipelineModule),
 }
 
@@ -179,10 +175,10 @@ fn create_base_module(lib: Library, module_info: ModuleInfo) -> Result<BaseModul
     let loader = RawPointerLoader::new(&lib);
     let m = BaseModule {
         init_ptr: loader.load(b"torustiq_module_init")?,
-        step_set_param_ptr: loader.load(b"torustiq_step_set_param")?,
-        step_shutdown_ptr: loader.load(b"torustiq_module_step_shutdown")?,
-        step_start_ptr: loader.load(b"torustiq_module_step_start")?,
-        free_char_ptr: loader.load(b"torustiq_module_free_char_ptr")?,
+        set_param_ptr: loader.load(b"torustiq_module_common_set_param")?,
+        shutdown_ptr: loader.load(b"torustiq_module_common_shutdown")?,
+        start_ptr: loader.load(b"torustiq_module_common_start")?,
+        free_char_ptr: loader.load(b"torustiq_module_common_free_char")?,
 
         module_info,
         _lib: lib,
