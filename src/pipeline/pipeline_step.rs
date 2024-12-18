@@ -41,4 +41,12 @@ impl PipelineStep {
     pub fn shutdown(&self) {
         self.module.shutdown(self.component.handle);
     }
+
+    pub fn get_id(&self) -> String {
+        self.component.id.clone()
+    }
+
+    pub fn get_handle(&self) -> usize {
+        self.component.handle
+    }
 }

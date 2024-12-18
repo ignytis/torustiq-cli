@@ -1,9 +1,8 @@
 use std::{
-    sync::{
+    collections::HashMap, sync::{
         mpsc::{channel, Receiver},
         Arc, Mutex
-    },
-    thread, time::Duration
+    }, thread, time::Duration
 };
 
 use log::{debug, error, info};
@@ -157,11 +156,30 @@ impl Pipeline {
 
     pub fn configure_listeners(&mut self) -> Result<(), String> {
         info!("Configuring steps...");
+
+        // Format the pipeline info in order to pass it to listeners
+        let mut pipeline_data: HashMap<String, String> = HashMap::new();
+        self.listeners.iter().for_each(|l| {
+            let l = l.lock().unwrap();
+            let handle = l.get_handle().to_string();
+            pipeline_data.insert(format!("listeners.{}.handle", &handle), handle.clone());
+            pipeline_data.insert(format!("listeners.{}.id", &handle), l.get_id());
+        });
+        self.steps.iter().for_each(|step| {
+            let step = step.lock().unwrap();
+            let handle = step.get_handle().to_string();
+            pipeline_data.insert(format!("steps.{}.handle", &handle), handle.clone());
+            pipeline_data.insert(format!("steps.{}.id", &handle), step.get_id());
+        });
+
         for listener_mtx in self.listeners.iter_mut() {
             let mut listener = listener_mtx.lock().unwrap();
             let module_handle = listener.component.handle;
             listener.component.args.iter()
                 .for_each(|(k,v) | listener.module.set_param(module_handle, k, v));
+            pipeline_data.iter().for_each(|(k, v)| {
+                listener.module.set_param(module_handle, format!("pipeline.{}", k), v.clone())
+            });
             listener.configure(ModuleListenerConfigureArgs{
                 module_handle: std_types::Uint::try_from(module_handle).unwrap(),
             })?;
