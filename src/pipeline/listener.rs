@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use torustiq_common::ffi::types::module::ModulePipelineConfigureArgs;
+use torustiq_common::ffi::types::module::ModuleListenerConfigureArgs;
 
 use crate::{
     modules::listener::ListenerModule,
@@ -30,8 +30,8 @@ impl Listener {
         }
     }
 
-    pub fn configure(&mut self, args: ModulePipelineConfigureArgs) -> Result<(), String> {
-        let _ = self.module.configure_step(args)?;
+    pub fn configure(&mut self, args: ModuleListenerConfigureArgs) -> Result<(), String> {
+        let _ = self.module.configure(args)?;
         self.component.state = PipelineComponentState::Configured;
         Ok(())
     }

@@ -86,7 +86,7 @@ impl BaseModule {
         (self.shutdown_ptr)(usize::try_into(module_handle).unwrap());
     }
 
-    pub fn set_step_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
+    pub fn set_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
         let k = string_to_cchar(k);
         let v = string_to_cchar(v);
         (self.set_param_ptr)(usize::try_into(handle).unwrap(), k, v);
@@ -95,7 +95,7 @@ impl BaseModule {
         cchar_const_deallocate(v);
     }
 
-    pub fn start_step(&self, module_handle: usize) -> Result<(), String> {
+    pub fn start(&self, module_handle: usize) -> Result<(), String> {
         match (self.start_ptr)(usize::try_into(module_handle).unwrap()) {
             StepStartFnResult::Ok => Ok(()),
             StepStartFnResult::ErrorMisc(e) => {

@@ -33,7 +33,7 @@ impl PipelineStep {
     }
 
     pub fn configure(&mut self, args: ModulePipelineConfigureArgs) -> Result<(), String> {
-        let _ = self.module.configure_step(args)?;
+        let _ = self.module.configure(args)?;
         self.component.state = PipelineComponentState::Configured;
         Ok(())
     }

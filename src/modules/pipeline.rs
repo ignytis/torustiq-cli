@@ -42,7 +42,7 @@ impl PipelineModule {
         self.base.init();
     }
 
-    pub fn configure_step(&self, args: ModulePipelineConfigureArgs) -> Result<(), String> {
+    pub fn configure(&self, args: ModulePipelineConfigureArgs) -> Result<(), String> {
         let module_handle = args.module_handle;
         match (self.configure_ptr)(args) {
             ModulePipelineConfigureFnResult::Ok => Ok(()),
@@ -59,12 +59,12 @@ impl PipelineModule {
         }
     }
 
-    pub fn start_step(&self, module_handle: usize) -> Result<(), String> {
-        self.base.start_step(module_handle)
+    pub fn start(&self, module_handle: usize) -> Result<(), String> {
+        self.base.start(module_handle)
     }
 
-    pub fn set_step_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
-        self.base.set_step_param(handle, k, v);
+    pub fn set_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
+        self.base.set_param(handle, k, v);
     }
 
     pub fn process_record(&self, input: Record, module_handle: usize) -> ModulePipelineProcessRecordFnResult {

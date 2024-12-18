@@ -72,8 +72,13 @@ fn main() {
 
     {
         let mut pipeline = pipeline_arc.lock().unwrap();
+
         if let Err(msg) = pipeline.configure_steps() {
             return crash_with_message(format!("Cannot configure steps: {}", msg));
+        };
+
+        if let Err(msg) = pipeline.configure_listeners() {
+            return crash_with_message(format!("Cannot configure listeners: {}", msg));
         };
 
         if let Err(msg) = pipeline.start_senders_receivers() {

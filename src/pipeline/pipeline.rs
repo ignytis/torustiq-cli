@@ -12,8 +12,7 @@ use torustiq_common::ffi::{
     shared::do_free_record,
     types::{
         module::{
-            ModulePipelineProcessRecordFnResult, ModulePipelineConfigureArgs,
-            PipelineModuleKind, Record
+            ModuleListenerConfigureArgs, ModulePipelineConfigureArgs, ModulePipelineProcessRecordFnResult, PipelineModuleKind, Record
         },
         std_types, traits::ShallowCopy
     }, utils::strings::cchar_to_string
@@ -141,7 +140,7 @@ impl Pipeline {
             let mut step = step_mtx.lock().unwrap();
             let module_handle = step.component.handle;
             for (k, v) in &step.component.args { // set arguments for step
-                step.module.set_step_param(module_handle, k, v);
+                step.module.set_param(module_handle, k, v);
             }
             let kind = if 0 == step_index { PipelineModuleKind::Source }
                 else if last_step_index == step_index { PipelineModuleKind::Destination }
@@ -153,8 +152,20 @@ impl Pipeline {
                 on_data_receive_cb: callbacks::on_rcv_cb,
             })?;
         }
-        // for (step_index, step_mtx) in self..iter_mut().enumerate() {
-        // }
+        Ok(())
+    }
+
+    pub fn configure_listeners(&mut self) -> Result<(), String> {
+        info!("Configuring steps...");
+        for listener_mtx in self.listeners.iter_mut() {
+            let mut listener = listener_mtx.lock().unwrap();
+            let module_handle = listener.component.handle;
+            listener.component.args.iter()
+                .for_each(|(k,v) | listener.module.set_param(module_handle, k, v));
+            listener.configure(ModuleListenerConfigureArgs{
+                module_handle: std_types::Uint::try_from(module_handle).unwrap(),
+            })?;
+        }
         Ok(())
     }
 
@@ -197,7 +208,7 @@ impl Pipeline {
         for step_mtx in &self.listeners {
             let step = step_mtx.lock().unwrap();
             let module_handle = step.component.handle;
-            match step.module.start_step(module_handle.into()) {
+            match step.module.start(module_handle.into()) {
                 Ok(_) => debug!("Started event listener '{}'", step.component.id),
                 Err(msg) => {
                     return Err(format!("Failed to start event listener '{}': {}", step.component.id, msg));
@@ -207,7 +218,7 @@ impl Pipeline {
         for step_mtx in &self.steps {
             let step = step_mtx.lock().unwrap();
             let module_handle = step.component.handle;
-            match step.module.start_step(module_handle.into()) {
+            match step.module.start(module_handle.into()) {
                 Ok(_) => debug!("Started pipeline step '{}'", step.component.id),
                 Err(msg) => {
                     return Err(format!("Failed to start pipeline step '{}': {}", step.component.id, msg));

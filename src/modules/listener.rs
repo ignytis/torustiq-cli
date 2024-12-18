@@ -9,7 +9,7 @@ use torustiq_common::ffi::{
     types:: {
         functions as fn_defs,
         module::{
-            ModuleListenerConfigureFnResult, ModulePipelineConfigureArgs, StepStartFnResult
+            ModuleListenerConfigureArgs, ModuleListenerConfigureFnResult, StepStartFnResult
         },
     },
     utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}
@@ -37,7 +37,7 @@ impl ListenerModule {
         self.base.init();
     }
 
-    pub fn configure_step(&self, args: ModulePipelineConfigureArgs) -> Result<(), String> {
+    pub fn configure(&self, args: ModuleListenerConfigureArgs) -> Result<(), String> {
         match (self.configure_ptr)(args) {
             ModuleListenerConfigureFnResult::Ok => Ok(()),
             ModuleListenerConfigureFnResult::ErrorMisc(e) => {
@@ -48,7 +48,7 @@ impl ListenerModule {
         }
     }
 
-    pub fn start_step(&self, module_handle: usize) -> Result<(), String> {
+    pub fn start(&self, module_handle: usize) -> Result<(), String> {
         match (self.base.start_ptr)(usize::try_into(module_handle).unwrap()) {
             StepStartFnResult::Ok => Ok(()),
             StepStartFnResult::ErrorMisc(e) => {
@@ -59,7 +59,7 @@ impl ListenerModule {
         }
     }
 
-    pub fn set_step_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
+    pub fn set_param<S: Into<String>>(&self, handle: usize, k: S, v: S) {
         let k = string_to_cchar(k);
         let v = string_to_cchar(v);
         (self.base.set_param_ptr)(usize::try_into(handle).unwrap(), k, v);
