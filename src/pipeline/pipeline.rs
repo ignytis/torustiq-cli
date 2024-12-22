@@ -67,7 +67,7 @@ fn start_system_command_thread(m_rx: Receiver<SystemMessage>) {
 
 /// Starts a reader thread.
 /// Reader threads listen input from the previous (sender) steps and forward records to further (receiver) steps
-fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_arc: Arc<Mutex<PipelineStep>>, rx: Receiver<Record>) {
+fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_arc: Arc<Mutex<PipelineStep>>, rx: Receiver<Record>, listeners: Vec<Listener>) {
     let step_rcv = step_receiver_arc.lock().unwrap().clone();
     thread::spawn(move || {
         let i_receiver_ffi = u32::try_from(step_rcv.get_handle()).unwrap();
@@ -82,16 +82,29 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
                     }
                 }
             };
+            for l in &listeners {
+                l.ffi_on_record_received(i_receiver_ffi, &record);
+            }
+
             // NO deep copy here for performance purposes.
             // In some occasions there is no need to have an original record deep-copied:
             // - it's used only partially (e.g. metadata only)
             // - it's processed instantly and therefore not stored inside module.
             let record_copy = record.shallow_copy();
-            // TODO: add listeners here
-            if let ModulePipelineProcessRecordFnResult::Err(cerr) = step_rcv.ffi_process_record(record, i_receiver_ffi) {
-                let err: String = cchar_to_string(cerr);
-                error!("Failed to process record in step '{}': {}", step_rcv.get_id(), err);
-                step_rcv.ffi_free_char(cerr);
+            match step_rcv.ffi_process_record(record, i_receiver_ffi) {
+                ModulePipelineProcessRecordFnResult::Ok => {
+                    for l in &listeners {
+                        l.ffi_on_record_sent(i_receiver_ffi, &record_copy);
+                    }
+                },
+                ModulePipelineProcessRecordFnResult::Err(cerr) => {
+                    for l in &listeners {
+                        l.ffi_on_record_error(i_receiver_ffi, &record_copy);
+                    }
+                    let err: String = cchar_to_string(cerr);
+                    error!("Failed to process record in step '{}': {}", step_rcv.get_id(), err);
+                    step_rcv.ffi_free_char(cerr);
+                }
             };
             do_free_record(record_copy);
         }
@@ -191,6 +204,11 @@ impl Pipeline {
 
         start_system_command_thread(m_rx);
 
+        let listeners: Vec<Listener> = self.listeners
+            .iter()
+            .map(|l| l.lock().unwrap().clone())
+            .collect();
+
         for i in 0..self.steps.len() - 1 {
             let i_sender = i;
             let i_receiver = i_sender + 1;
@@ -207,7 +225,7 @@ impl Pipeline {
             let (tx, rx) = channel::<Record>();
             senders.insert(i_sender_ffi, tx);
 
-            start_reader_thread(step_sender_arc, step_receiver_arc, rx);
+            start_reader_thread(step_sender_arc, step_receiver_arc, rx, listeners.clone());
         }
 
         Ok(())

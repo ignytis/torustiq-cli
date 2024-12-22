@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use torustiq_common::ffi::types::module::ModuleListenerConfigureArgs;
+use torustiq_common::ffi::types::module as module_types;
 
 use crate::{
     modules::listener::ListenerModule,
@@ -9,6 +9,7 @@ use crate::{
 };
 
 /// An event listener for pipeline events
+#[derive(Clone)]
 pub struct Listener {
     pub component: PipelineComponent,
     /// A reference to module library
@@ -30,7 +31,7 @@ impl Listener {
         }
     }
 
-    pub fn configure(&mut self, args: ModuleListenerConfigureArgs) -> Result<(), String> {
+    pub fn configure(&mut self, args: module_types::ModuleListenerConfigureArgs) -> Result<(), String> {
         let _ = self.module.configure(args)?;
         self.component.state = PipelineComponentState::Configured;
         Ok(())
@@ -47,5 +48,17 @@ impl Listener {
 
     pub fn get_handle(&self) -> usize {
         self.component.handle
+    }
+
+    pub fn ffi_on_record_received(&self, handle: module_types::ModuleHandle, record: *const module_types::Record) {
+        (self.module.record_rcv_ptr)(handle, record)
+    }
+
+    pub fn ffi_on_record_sent(&self, handle: module_types::ModuleHandle, record: *const module_types::Record) {
+        (self.module.record_send_success_ptr)(handle, record)
+    }
+
+    pub fn ffi_on_record_error(&self, handle: module_types::ModuleHandle, record: *const module_types::Record) {
+        (self.module.record_send_failure_ptr)(handle, record)
     }
 }

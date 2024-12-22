@@ -22,6 +22,12 @@ use crate::modules::{BaseModule, ModuleInfo};
 pub struct ListenerModule {
     pub base: BaseModule,
     pub configure_ptr: RawSymbol<fn_defs::ModuleListenerConfigureFn>,
+    /// A pointer to message receive handler
+    pub record_rcv_ptr: RawSymbol<fn_defs::ModuleListenerRecordRcvFn>,
+    /// A pointer to message send handler (successful)
+    pub record_send_success_ptr: RawSymbol<fn_defs::ModuleListenerRecordSendSuccessFn>,
+    /// A pointer to message send handler (failure)
+    pub record_send_failure_ptr: RawSymbol<fn_defs::ModuleListenerRecordSendFailureFn>,
 }
 
 impl ListenerModule {

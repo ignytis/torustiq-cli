@@ -137,6 +137,9 @@ fn load_module(lib: &Library) -> Result<LoadedLibrary, Box<dyn Error>> {
         }),
         ModuleKind::Listener => LoadedLibrary::Listener(ListenerModule {
             configure_ptr: loader.load(b"torustiq_module_listener_configure")?,
+            record_rcv_ptr: loader.load(b"torustiq_module_listener_record_rcv")?,
+            record_send_failure_ptr: loader.load(b"torustiq_module_listener_record_send_failure")?,
+            record_send_success_ptr: loader.load(b"torustiq_module_listener_record_send_success")?,
 
             base: create_base_module(lib, module_info)?,
         })
