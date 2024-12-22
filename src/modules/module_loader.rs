@@ -25,6 +25,8 @@ use crate::modules::{
 
 #[derive(Default)]
 pub struct LoadedLibraries {
+    /// Handles of loaded libraries are stored here in order to keep libraries open for use
+    pub libs: Vec<Library>,
     pub listeners: HashMap<String, Arc<ListenerModule>>,
     pub pipeline: HashMap<String, Arc<PipelineModule>>,
 }
@@ -86,21 +88,21 @@ pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Re
             continue
         }
 
-        match load_module(lib) {
-            Ok(loaded_lib) => {
-                match loaded_lib {
-                    LoadedLibrary::Pipeline(p) => {
-                        loaded_libs.pipeline.insert(module_id.clone(), Arc::from(p));
-                    },
-                    LoadedLibrary::Listener(l) => {
-                        loaded_libs.listeners.insert(module_id.clone(), Arc::from(l));
-                    },
-                };
-                loaded_module_ids.push(module_id.clone());
-                debug!("Module '{}' is loaded.", module_id);
-            },
+        let loaded_lib = match load_module(&lib) {
+            Ok(l) => l,
             Err(e) => return Err(format!("Failed to initialize a module from library '{}': {}", path_str, e)),
         };
+        match loaded_lib {
+            LoadedLibrary::Pipeline(p) => {
+                loaded_libs.pipeline.insert(module_id.clone(), Arc::from(p));
+            },
+            LoadedLibrary::Listener(l) => {
+                loaded_libs.listeners.insert(module_id.clone(), Arc::from(l));
+            },
+        };
+        loaded_libs.libs.push(lib);
+        loaded_module_ids.push(module_id.clone());
+        debug!("Module '{}' is loaded.", module_id);
     }
 
     let missing_module_ids: Vec<String> = required_module_ids
@@ -118,8 +120,8 @@ pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Re
 }
 
 /// Loads a module from library
-fn load_module(lib: Library) -> Result<LoadedLibrary, Box<dyn Error>> {
-    let loader = RawPointerLoader::new(&lib);
+fn load_module(lib: &Library) -> Result<LoadedLibrary, Box<dyn Error>> {
+    let loader = RawPointerLoader::new(lib);
     let module_info: ModuleInfo = {
         let torustiq_module_get_info: RawSymbol<fn_defs::ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
         torustiq_module_get_info()
@@ -171,7 +173,7 @@ pub enum LoadedLibrary {
 }
 
 /// Consumes library + module info and creates an instace of base module
-fn create_base_module(lib: Library, module_info: ModuleInfo) -> Result<BaseModule, Box<dyn Error>> {
+fn create_base_module(lib: &Library, module_info: ModuleInfo) -> Result<BaseModule, Box<dyn Error>> {
     let loader = RawPointerLoader::new(&lib);
     let m = BaseModule {
         init_ptr: loader.load(b"torustiq_module_init")?,
@@ -181,7 +183,6 @@ fn create_base_module(lib: Library, module_info: ModuleInfo) -> Result<BaseModul
         free_char_ptr: loader.load(b"torustiq_module_common_free_char")?,
 
         module_info,
-        _lib: lib,
     };
     Ok(m)
 }

@@ -10,6 +10,7 @@ use std::{
     fs, process::exit, sync::{Arc, Mutex}, thread, time
 };
 
+use libloading::Library;
 use log::{debug, error, info};
 
 use shutdown::init_signal_handler;
@@ -24,7 +25,7 @@ use crate::{
 };
 
 /// Creates a pipeline from pipeline definition file
-fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
+fn create_pipeline(args: &CliArgs) -> Result<(Pipeline, Vec<Library>), String> {
     debug!("Creating a pipeline from definition file: {}", &args.pipeline_file);
     let pipeline_def: String = match fs::read_to_string(&args.pipeline_file) {
         Ok(c) => c,
@@ -45,7 +46,8 @@ fn create_pipeline(args: &CliArgs) -> Result<Pipeline, String> {
         Err(e) => return Err(format!("Failed to create a pipeline from definition: {}", e))
     };
     info!("Constructed a pipeline which contains {} steps", pipeline.steps.len());
-    Ok(pipeline)
+    let loaded_libs = loaded_libs.libs;
+    Ok((pipeline, loaded_libs))
 }
 
 fn main() {
@@ -56,7 +58,7 @@ fn main() {
     };
 
     let args = CliArgs::do_parse();
-    let pipeline = match create_pipeline(&args) {
+    let (pipeline, _loaded_libs) = match create_pipeline(&args) {
         Ok(p) => p,
         Err(msg) => return crash_with_message(format!("Failed to create a pipeline: {}", msg))
     };

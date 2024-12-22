@@ -7,7 +7,7 @@ pub mod pipeline;
 pub mod pipeline_step;
 
 /// State of step
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum PipelineComponentState {
     /// Component is just created, but not configured and not ready to run
     Created,
@@ -23,6 +23,7 @@ pub enum PipelineComponentState {
 /// Pipeline component is whatever part of pipeline which utilized module features:
 /// - Pipeline Step
 /// - Event listener
+#[derive(Clone)]
 pub struct PipelineComponent {
     /// Module-specific arguments - credentials, formatting rules, etc
     pub args: HashMap<String, String>,

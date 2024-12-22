@@ -2,7 +2,6 @@ pub mod listener;
 pub mod module_loader;
 pub mod pipeline;
 
-use libloading::Library;
 #[cfg(unix)]
 use libloading::os::unix::Symbol as RawSymbol;
 #[cfg(windows)]
@@ -19,6 +18,7 @@ use torustiq_common::ffi::{
 
 
 /// Defines the kind of module.
+#[derive(Clone)]
 pub enum ModuleKind {
     /// An event listener module. Reacts to application events.
     Listener,
@@ -26,6 +26,7 @@ pub enum ModuleKind {
     Pipeline,
 }
 
+#[derive(Clone)]
 pub struct ModuleInfo {
     /// API version is used to verify the compatibility between host app and module
     pub api_version: u32,
@@ -59,6 +60,7 @@ impl From<FfiModuleInfo> for ModuleInfo {
 }
 
 /// Base module contains common module attributes
+#[derive(Clone)]
 pub struct BaseModule {
     /// A pointer to torustiq_module_init function
     init_ptr: RawSymbol<fn_defs::ModuleInitFn>,
@@ -67,8 +69,6 @@ pub struct BaseModule {
     pub start_ptr: RawSymbol<fn_defs::StepStartFn>,
     pub free_char_ptr: RawSymbol<fn_defs::ModuleFreeCharPtrFn>,
 
-    /// A library handle needs to be stored in order to keep the imported functions available
-    _lib: Library,
     module_info: ModuleInfo,
 }
 

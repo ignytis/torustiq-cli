@@ -68,17 +68,9 @@ fn start_system_command_thread(m_rx: Receiver<SystemMessage>) {
 /// Starts a reader thread.
 /// Reader threads listen input from the previous (sender) steps and forward records to further (receiver) steps
 fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_arc: Arc<Mutex<PipelineStep>>, rx: Receiver<Record>) {
-    let (free_char_ptr, step_process_record_ptr, step_shutdown_ptr, i_receiver_ffi, step_id) = {
-        let step_receiver = step_receiver_arc.lock().unwrap();
-        (
-            step_receiver.module.base.free_char_ptr.clone(),
-            step_receiver.module.process_record_ptr.clone(),
-            step_receiver.module.base.shutdown_ptr.clone(),
-            u32::try_from(step_receiver.component.handle).unwrap(),
-            step_receiver.component.id.clone(),
-        )
-    };
+    let step_rcv = step_receiver_arc.lock().unwrap().clone();
     thread::spawn(move || {
+        let i_receiver_ffi = u32::try_from(step_rcv.get_handle()).unwrap();
         loop {
             let record = match rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(r) => r,
@@ -95,16 +87,17 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
             // - it's used only partially (e.g. metadata only)
             // - it's processed instantly and therefore not stored inside module.
             let record_copy = record.shallow_copy();
-            if let ModulePipelineProcessRecordFnResult::Err(cerr) = step_process_record_ptr(record, i_receiver_ffi) {
+            // TODO: add listeners here
+            if let ModulePipelineProcessRecordFnResult::Err(cerr) = step_rcv.ffi_process_record(record, i_receiver_ffi) {
                 let err: String = cchar_to_string(cerr);
-                error!("Failed to process record in step '{}': {}", step_id, err);
-                free_char_ptr(cerr);
+                error!("Failed to process record in step '{}': {}", step_rcv.get_id(), err);
+                step_rcv.ffi_free_char(cerr);
             };
             do_free_record(record_copy);
         }
 
         // Processed all the data from upstream. Terminating the current step
-        step_shutdown_ptr(i_receiver_ffi);
+        step_rcv.ffi_shutdown(i_receiver_ffi);
     });
 }
 

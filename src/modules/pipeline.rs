@@ -21,6 +21,7 @@ use crate::modules::{BaseModule, ModuleInfo};
 /// A pipeline step module.
 /// This kind of modules is involved directly in data processing:
 /// it produces, transforms, or writes the data to destination
+#[derive(Clone)]
 pub struct PipelineModule {
     pub base: BaseModule,
 

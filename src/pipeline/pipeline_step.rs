@@ -2,7 +2,10 @@ use std::{
     collections::HashMap, sync::Arc,
 };
 
-use torustiq_common::ffi::types::module::ModulePipelineConfigureArgs;
+use torustiq_common::ffi::types::{
+    module as module_types,
+    std_types,
+};
 
 use crate::{
     modules::pipeline::PipelineModule,
@@ -10,6 +13,7 @@ use crate::{
 };
 
 /// A single step in pipeline
+#[derive(Clone)]
 pub struct PipelineStep {
     /// Base pipeline component attributes
     pub component: PipelineComponent,
@@ -32,7 +36,7 @@ impl PipelineStep {
         }
     }
 
-    pub fn configure(&mut self, args: ModulePipelineConfigureArgs) -> Result<(), String> {
+    pub fn configure(&mut self, args: module_types::ModulePipelineConfigureArgs) -> Result<(), String> {
         let _ = self.module.configure(args)?;
         self.component.state = PipelineComponentState::Configured;
         Ok(())
@@ -48,5 +52,18 @@ impl PipelineStep {
 
     pub fn get_handle(&self) -> usize {
         self.component.handle
+    }
+
+    pub fn ffi_free_char(&self, c: std_types::ConstCharPtr) {
+        (self.module.base.free_char_ptr)(c);
+    }
+
+    pub fn ffi_process_record(&self, record: module_types::Record, handle: module_types::ModuleHandle) -> module_types::ModulePipelineProcessRecordFnResult {
+        (self.module.process_record_ptr)(record, handle)
+
+    }
+
+    pub fn ffi_shutdown(&self, handle: module_types::ModuleHandle) {
+        (self.module.base.shutdown_ptr)(handle);
     }
 }
