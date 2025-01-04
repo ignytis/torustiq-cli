@@ -20,7 +20,7 @@ use xthread::PIPELINE;
 use crate::{
     cli::CliArgs,
     config::PipelineDefinition,
-    modules::module_loader::load_modules,
+    modules::module_loader::load_libraries,
     pipeline::pipeline::Pipeline
 };
 
@@ -37,7 +37,7 @@ fn create_pipeline(args: &CliArgs) -> Result<(Pipeline, Vec<Library>), String> {
     };
 
     let module_ids_required = pipeline_def.get_module_ids_in_use();
-    let loaded_libs = load_modules(&args.module_dir, module_ids_required)?;
+    let loaded_libs: modules::module_loader::LoadedLibraries = load_libraries(&args.module_dir, module_ids_required)?;
     info!("All modules are loaded.");
     loaded_libs.init();
 

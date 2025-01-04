@@ -11,7 +11,7 @@ use libloading::os::windows::Symbol as RawSymbol;
 use torustiq_common::ffi::{
     types::{
         functions as fn_defs,
-        module::{ModuleInfo as FfiModuleInfo, ModuleKind as FfiModuleKind, StepStartFnResult},
+        module::{LibInfo as FfiLibInfo, ModuleKind as FfiModuleKind, StepStartFnResult},
     },
     utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}
 };
@@ -27,7 +27,7 @@ pub enum ModuleKind {
 }
 
 #[derive(Clone)]
-pub struct ModuleInfo {
+pub struct LibInfo {
     /// API version is used to verify the compatibility between host app and module
     pub api_version: u32,
     /// Module ID must be unique for all modules.
@@ -48,9 +48,9 @@ impl From<FfiModuleKind> for ModuleKind {
     }
 }
 
-impl From<FfiModuleInfo> for ModuleInfo {
-    fn from(value: FfiModuleInfo) -> ModuleInfo {
-        ModuleInfo {
+impl From<FfiLibInfo> for LibInfo {
+    fn from(value: FfiLibInfo) -> LibInfo {
+        LibInfo {
             api_version: value.api_version,
             id: cchar_to_string(value.id),
             kind: value.kind.into(),
@@ -62,24 +62,17 @@ impl From<FfiModuleInfo> for ModuleInfo {
 /// Base module contains common module attributes
 #[derive(Clone)]
 pub struct BaseModule {
-    /// A pointer to torustiq_module_init function
-    init_ptr: RawSymbol<fn_defs::ModuleInitFn>,
     pub set_param_ptr: RawSymbol<fn_defs::StepSetParamFn>,
     pub shutdown_ptr: RawSymbol<fn_defs::ModuleStepShutdownFn>,
     pub start_ptr: RawSymbol<fn_defs::StepStartFn>,
     pub free_char_ptr: RawSymbol<fn_defs::ModuleFreeCharPtrFn>,
 
-    module_info: ModuleInfo,
+    module_info: LibInfo,
 }
 
 impl BaseModule {
-    pub fn get_info(&self) -> &ModuleInfo {
+    pub fn get_info(&self) -> &LibInfo {
         &self.module_info
-    }
-
-    /// General initialization of module
-    pub fn init(&self) {
-        (self.init_ptr)()
     }
 
     pub fn shutdown(&self, module_handle: usize) {

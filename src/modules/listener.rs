@@ -8,20 +8,24 @@ use libloading::os::windows::Symbol as RawSymbol;
 use torustiq_common::ffi::{
     types:: {
         functions as fn_defs,
-        module::{
-            ModuleListenerConfigureArgs, ModuleListenerConfigureFnResult, StepStartFnResult
-        },
+        module as module_types,
     },
     utils::strings::{cchar_const_deallocate, cchar_to_string, string_to_cchar}
 };
 
-use crate::modules::{BaseModule, ModuleInfo};
+use crate::{
+    callbacks,
+    modules::{BaseModule, LibInfo}
+};
 
 /// An event listener module.
 /// Handles the application events, but does not participate in data processing.
 pub struct ListenerModule {
     pub base: BaseModule,
+
     pub configure_ptr: RawSymbol<fn_defs::ModuleListenerConfigureFn>,
+
+    pub init_ptr: RawSymbol<fn_defs::LibListenerInitFn>,
     /// A pointer to message receive handler
     pub record_rcv_ptr: RawSymbol<fn_defs::ModuleListenerRecordRcvFn>,
     /// A pointer to message send handler (successful)
@@ -31,22 +35,26 @@ pub struct ListenerModule {
 }
 
 impl ListenerModule {
+    pub fn init(&self) {
+        (self.init_ptr)(module_types::LibListenerInitArgs {
+            common: module_types::LibCommonInitArgs {
+                on_step_terminate_cb: callbacks::on_step_terminate_cb,
+            },
+        })
+    }
+
     pub fn get_id(&self) -> String {
         self.base.module_info.id.clone()
     }
 
-    pub fn get_info(&self) -> &ModuleInfo {
+    pub fn get_info(&self) -> &LibInfo {
         self.base.get_info()
     }
 
-    pub fn init(&self) {
-        self.base.init();
-    }
-
-    pub fn configure(&self, args: ModuleListenerConfigureArgs) -> Result<(), String> {
+    pub fn configure(&self, args: module_types::ModuleListenerConfigureArgs) -> Result<(), String> {
         match (self.configure_ptr)(args) {
-            ModuleListenerConfigureFnResult::Ok => Ok(()),
-            ModuleListenerConfigureFnResult::ErrorMisc(e) => {
+            module_types::ModuleListenerConfigureFnResult::Ok => Ok(()),
+            module_types::ModuleListenerConfigureFnResult::ErrorMisc(e) => {
                 let err_string = cchar_to_string(e.clone());
                 (self.base.free_char_ptr)(e);
                 Err(err_string)
@@ -56,8 +64,8 @@ impl ListenerModule {
 
     pub fn start(&self, module_handle: usize) -> Result<(), String> {
         match (self.base.start_ptr)(usize::try_into(module_handle).unwrap()) {
-            StepStartFnResult::Ok => Ok(()),
-            StepStartFnResult::ErrorMisc(e) => {
+            module_types::StepStartFnResult::Ok => Ok(()),
+            module_types::StepStartFnResult::ErrorMisc(e) => {
                 let err_string = cchar_to_string(e.clone());
                 (self.base.free_char_ptr)(e);
                 Err(err_string)

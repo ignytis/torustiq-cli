@@ -18,7 +18,7 @@ use torustiq_common::{
 };
 
 use crate::modules::{
-    BaseModule, ModuleInfo, ModuleKind,
+    BaseModule, LibInfo, ModuleKind,
     pipeline::PipelineModule,
     listener::ListenerModule
 };
@@ -33,20 +33,20 @@ pub struct LoadedLibraries {
 
 impl LoadedLibraries {
     pub fn init(&self) {
-        info!("Initialization of modules...");
-        for module in self.listeners.values() {
-            debug!("Initializing event listener module '{}' (name: '{}')...", module.get_info().id, module.get_info().name);
-            module.init();
+        info!("Initialization of libraries...");
+        for lib in self.listeners.values() {
+            debug!("Initializing event listener library '{}' (name: '{}')...", lib.get_info().id, lib.get_info().name);
+            lib.init();
         }
-        for module in self.pipeline.values() {
-            debug!("Initializing step module '{}' (name: '{}')...", module.get_info().id, module.get_info().name);
-            module.init();
+        for lib in self.pipeline.values() {
+            debug!("Initializing step library '{}' (name: '{}')...", lib.get_info().id, lib.get_info().name);
+            lib.init();
         }
     }
 }
 
 /// Returns a HashMap of modules referenced in the pipeline definition
-pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Result<LoadedLibraries, String> {
+pub fn load_libraries(module_dir: &String, required_module_ids: Vec<String>) -> Result<LoadedLibraries, String> {
     let mut loaded_libs = LoadedLibraries::default();
     let mut loaded_module_ids: Vec<String> = Vec::new();
 
@@ -70,7 +70,7 @@ pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Re
                 Ok(l) => l,
                 Err(e) => return Err(format!("Failed to load a library at path '{}': {}", path_str, e)),
             };
-            let torustiq_module_get_info: Symbol<fn_defs::ModuleGetInfoFn> = match lib.get(b"torustiq_module_get_info") {
+            let torustiq_module_get_info: Symbol<fn_defs::LibGetInfoFn> = match lib.get(b"torustiq_module_get_info") {
                 Ok(s) => s,
                 Err(e) => return Err(format!("Failed to load function 'torustiq_module_get_info' from library '{}': {}", path_str, e)),
             };
@@ -88,7 +88,7 @@ pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Re
             continue
         }
 
-        let loaded_lib = match load_module(&lib) {
+        let loaded_lib = match load_library(&lib) {
             Ok(l) => l,
             Err(e) => return Err(format!("Failed to initialize a module from library '{}': {}", path_str, e)),
         };
@@ -120,15 +120,16 @@ pub fn load_modules(module_dir: &String, required_module_ids: Vec<String>) -> Re
 }
 
 /// Loads a module from library
-fn load_module(lib: &Library) -> Result<LoadedLibrary, Box<dyn Error>> {
+fn load_library(lib: &Library) -> Result<LoadedLibrary, Box<dyn Error>> {
     let loader = RawPointerLoader::new(lib);
-    let module_info: ModuleInfo = {
-        let torustiq_module_get_info: RawSymbol<fn_defs::ModuleGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
+    let module_info: LibInfo = {
+        let torustiq_module_get_info: RawSymbol<fn_defs::LibGetInfoFn> = loader.load(b"torustiq_module_get_info")?;
         torustiq_module_get_info()
     }.into();
 
     let module = match module_info.kind {
         ModuleKind::Pipeline => LoadedLibrary::Pipeline(PipelineModule {
+            init_ptr: loader.load(b"torustiq_lib_pipeline_init")?,
             configure_ptr: loader.load(b"torustiq_module_pipeline_configure")?,
             process_record_ptr: loader.load(b"torustiq_module_pipeline_process_record")?,
             free_record_ptr: loader.load(b"torustiq_module_pipeline_free_record")?,
@@ -136,6 +137,7 @@ fn load_module(lib: &Library) -> Result<LoadedLibrary, Box<dyn Error>> {
             base: create_base_module(lib, module_info)?,
         }),
         ModuleKind::Listener => LoadedLibrary::Listener(ListenerModule {
+            init_ptr: loader.load(b"torustiq_lib_listener_init")?,
             configure_ptr: loader.load(b"torustiq_module_listener_configure")?,
             record_rcv_ptr: loader.load(b"torustiq_module_listener_record_rcv")?,
             record_send_failure_ptr: loader.load(b"torustiq_module_listener_record_send_failure")?,
@@ -176,10 +178,9 @@ pub enum LoadedLibrary {
 }
 
 /// Consumes library + module info and creates an instace of base module
-fn create_base_module(lib: &Library, module_info: ModuleInfo) -> Result<BaseModule, Box<dyn Error>> {
+fn create_base_module(lib: &Library, module_info: LibInfo) -> Result<BaseModule, Box<dyn Error>> {
     let loader = RawPointerLoader::new(&lib);
     let m = BaseModule {
-        init_ptr: loader.load(b"torustiq_module_init")?,
         set_param_ptr: loader.load(b"torustiq_module_common_set_param")?,
         shutdown_ptr: loader.load(b"torustiq_module_common_shutdown")?,
         start_ptr: loader.load(b"torustiq_module_common_start")?,

@@ -18,7 +18,6 @@ use torustiq_common::ffi::{
 };
 
 use crate::{
-    callbacks,
     config::PipelineDefinition,
     modules::module_loader::LoadedLibraries,
     pipeline::{
@@ -153,8 +152,6 @@ impl Pipeline {
             step.configure(ModulePipelineConfigureArgs{
                 kind,
                 module_handle: std_types::Uint::try_from(module_handle).unwrap(),
-                on_step_terminate_cb: callbacks::on_step_terminate_cb,
-                on_data_receive_cb: callbacks::on_rcv_cb,
             })?;
         }
         Ok(())
