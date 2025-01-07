@@ -38,8 +38,6 @@ impl PipelineModule {
                 on_step_terminate_cb: callbacks::on_step_terminate_cb,
             },
             on_data_receive_cb: callbacks::on_rcv_cb,
-            create_record_ptr_fn: module_types::new_record_as_raw_ptr,
-            free_record_ptr_fn: module_types::free_record_ptr,
         })
     }
 
@@ -76,9 +74,9 @@ impl PipelineModule {
         self.base.set_param(handle, k, v);
     }
 
-    pub fn process_record(&self, input: module_types::Record, module_handle: usize) -> module_types::ModulePipelineProcessRecordFnResult {
+    pub fn process_record(&self, module_handle: usize, input: module_types::Record) -> module_types::ModulePipelineProcessRecordFnResult {
         let i = usize::try_into(module_handle).unwrap();
-        (self.process_record_ptr)(input, i)
+        (self.process_record_ptr)(i, input)
     }
 
     pub fn free_record(&self, r: module_types::Record) {

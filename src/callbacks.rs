@@ -6,7 +6,7 @@ use log::{debug, error};
 
 use torustiq_common::ffi::types::module::{ModuleHandle, Record};
 
-use crate::xthread::{FREE_BUF, SENDERS, SYSTEM_MESSAGES, SystemMessage};
+use crate::xthread::{SENDERS, SYSTEM_MESSAGES, SystemMessage};
 
 /// Called from modules on step thread termination
 pub extern "C"  fn on_step_terminate_cb(module_handle: ModuleHandle) {
@@ -24,18 +24,15 @@ pub extern "C"  fn on_step_terminate_cb(module_handle: ModuleHandle) {
 }
 
 /// Steps use this function to pass the produced record to dependent step
-pub extern "C" fn on_rcv_cb(record: Record, module_handle: ModuleHandle) {
+pub extern "C" fn on_rcv_cb(module_handle: ModuleHandle, record: Record) {
     let sender = match SENDERS.lock().unwrap().get(&module_handle) {
         Some(s) => s.clone(),
         None => return, // no sender exists: no action
     };
 
     // Sends a cloned record to further processing and deallocates the original record
-    if let Err(e) = sender.send(record.clone()) {
+    if let Err(e) = sender.send(record) {
         error!("Failed to send a record from step '{}' to the next steep: {}", module_handle, e);
         return;
     }
-    let free_buf_fn_map = FREE_BUF.lock().unwrap();
-    let free_buf_fn = free_buf_fn_map.get(&module_handle).unwrap();
-    free_buf_fn(record);
 }

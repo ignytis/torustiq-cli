@@ -8,12 +8,11 @@ use std::{
 use log::{debug, error, info};
 
 use torustiq_common::ffi::{
-    shared::do_free_record,
     types::{
         module::{
-            ModuleListenerConfigureArgs, ModulePipelineConfigureArgs, ModulePipelineProcessRecordFnResult, PipelineModuleKind, Record
+            ModuleListenerConfigureArgs, ModulePipelineConfigureArgs, ModulePipelineProcessRecordFnResult, PipelineModuleKind, Record,
         },
-        std_types, traits::ShallowCopy
+        std_types,
     }, utils::strings::cchar_to_string
 };
 
@@ -71,7 +70,7 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
     thread::spawn(move || {
         let i_receiver_ffi = u32::try_from(step_rcv.get_handle()).unwrap();
         loop {
-            let record = match rx.recv_timeout(Duration::from_millis(100)) {
+            let mut record = match rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(r) => r,
                 Err(_) => { // timeout
                     if step_sender_arc.lock().unwrap().component.is_terminated() { // no messages because the source is shut down
@@ -89,23 +88,32 @@ fn start_reader_thread(step_sender_arc: Arc<Mutex<PipelineStep>>, step_receiver_
             // In some occasions there is no need to have an original record deep-copied:
             // - it's used only partially (e.g. metadata only)
             // - it's processed instantly and therefore not stored inside module.
-            let record_copy = record.shallow_copy();
-            match step_rcv.ffi_process_record(record, i_receiver_ffi) {
-                ModulePipelineProcessRecordFnResult::Ok => {
-                    for l in &listeners {
-                        l.ffi_on_record_sent(i_receiver_ffi, &record_copy);
-                    }
+            // let record_copy = record.shallow_copy();
+            let (success, is_consumed) = match step_rcv.ffi_process_record(record, i_receiver_ffi) {
+                ModulePipelineProcessRecordFnResult::Ok(is_consumed) => (true, is_consumed),
+                ModulePipelineProcessRecordFnResult::ErrWrongModuleHandle(handle, is_consumed) => {
+                    error!("Wrong module handle '{}'", handle);
+                    (false, is_consumed)
                 },
-                ModulePipelineProcessRecordFnResult::Err(cerr) => {
-                    for l in &listeners {
-                        l.ffi_on_record_error(i_receiver_ffi, &record_copy);
-                    }
+                ModulePipelineProcessRecordFnResult::ErrMisc(cerr, is_consumed) => {
                     let err: String = cchar_to_string(cerr);
                     error!("Failed to process record in step '{}': {}", step_rcv.get_id(), err);
                     step_rcv.ffi_free_char(cerr);
+                    (false, is_consumed)
                 }
             };
-            do_free_record(record_copy);
+            if success {
+                for l in &listeners {
+                    l.ffi_on_record_sent(i_receiver_ffi, &record);
+                }
+            } else {
+                for l in &listeners {
+                    l.ffi_on_record_error(i_receiver_ffi, &record);
+                }
+            }
+            if !is_consumed {
+                record.free_contents();
+            }
         }
 
         // Processed all the data from upstream. Terminating the current step

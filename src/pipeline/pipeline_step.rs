@@ -59,7 +59,7 @@ impl PipelineStep {
     }
 
     pub fn ffi_process_record(&self, record: module_types::Record, handle: module_types::ModuleHandle) -> module_types::ModulePipelineProcessRecordFnResult {
-        (self.module.process_record_ptr)(record, handle)
+        (self.module.process_record_ptr)(handle, record)
 
     }
 
