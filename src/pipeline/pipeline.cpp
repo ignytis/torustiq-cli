@@ -52,7 +52,7 @@ void Pipeline::setPlugins(vector<TorustiqCli::Plugins::StagePlugin>& plugins) {
                 continue;
             }
             stage->SetPlugin(&plugin);
-            spdlog::debug("Assigned plugin [{}] to stage '{}'", plugin.GetId(),
+            spdlog::debug("Assigned plugin [{}] to stage '{}'.", plugin.GetId(),
                           stage->GetName());
             break;
         }
@@ -66,4 +66,14 @@ void Pipeline::initStages() {
     }
 }
 
-void Pipeline::start() { spdlog::debug("Pipeline started"); }
+void Pipeline::start() {
+    spdlog::debug("Starting the pipeline...");
+    spdlog::debug("Starting stages in reverse order...");
+    for (int i = stages.size() - 1; i >= 0; i--) {
+        Stages::AbstractStage* stage = stages.at(i);
+        stage->Start();
+        spdlog::debug("Stage #{} '{}' started.", i, stage->GetName());
+    }
+
+    spdlog::debug("Pipeline started.");
+}

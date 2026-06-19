@@ -3,9 +3,12 @@
 
 #include <string>
 
+// #include "../../common/collections/tsqueue.hpp"
 #include "../../plugins/stage_plugin.hpp"
 #include "../../typedefs/pipeline/stage.hpp"
+// #include "../../typedefs/pipeline/message.h"
 
+// using TorustiqCli::Common::Collections::TSQueue;
 using TorustiqCli::Plugins::StagePlugin;
 
 namespace TorustiqCli {
@@ -25,6 +28,11 @@ class AbstractStage {
     string GetName() const;
 
     void SetPlugin(StagePlugin* plugin);
+
+    void Start();
+
+    // virtual TSQueue<Message>* GetPrevStageQueue();
+    // virtual TSQueue<Message>* GetNextStageQueue();
 
    protected:
     string handlerId;

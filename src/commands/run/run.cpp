@@ -41,6 +41,8 @@ void RunCommand::run() {
     }
 
     // Format a set of plugins. Start with builtins
+    // TODO: call GetPlugins instead. Builtin plugins + libraries should be an
+    // internal logic of plugin factory
     vector<StagePlugin> plugins_builtin =
         TorustiqCli::Plugins::Builtin::GetBuiltinPlugins();
 
