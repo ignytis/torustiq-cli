@@ -15,18 +15,23 @@ namespace Stages {
 /** Abstract base class for all pipeline stages */
 class AbstractStage {
    public:
-    string name;
-    string handlerId;
-
-    StagePlugin* plugin = nullptr;
-    ConfigKV config;
-
     explicit AbstractStage(
         const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def);
     virtual ~AbstractStage() = default;
 
     /** Initializes a stage */
     virtual void init() {}
+    string GetHandlerId() const;
+    string GetName() const;
+
+    void SetPlugin(StagePlugin* plugin);
+
+   protected:
+    string handlerId;
+    string name;
+
+    StagePlugin* plugin = nullptr;
+    ConfigKV config;
 };
 
 }  // namespace Stages

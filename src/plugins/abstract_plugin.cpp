@@ -2,8 +2,6 @@
 
 using namespace TorustiqCli::Plugins;
 
-const TorustiqPluginInfo GetInfoPtrNoop() {};
-
 AbstractPlugin::AbstractPlugin(AbstractPluginConstructorArgs args)
     : InitPtr(args.init_fn_ptr), GetInfoPtr(args.get_info_fn_ptr) {
     if (!InitPtr) {

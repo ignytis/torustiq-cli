@@ -3,4 +3,4 @@
 using namespace TorustiqCli::Plugins;
 
 StagePlugin::StagePlugin(StagePluginConstructorArgs args)
-    : AbstractPlugin(args.super_args) {}
+    : AbstractPlugin(args.abstract_plugin_args) {}

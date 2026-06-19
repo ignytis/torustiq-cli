@@ -9,7 +9,7 @@ namespace TorustiqCli {
 namespace Plugins {
 
 struct StagePluginConstructorArgs {
-    AbstractPluginConstructorArgs super_args;
+    AbstractPluginConstructorArgs abstract_plugin_args;
 };
 
 /** A class for stage plugin */

@@ -59,9 +59,13 @@ void RunCommand::run() {
         }) |
         to<vector<StagePlugin>>();
 
+    spdlog::debug("Initializing plugins...");
     for (StagePlugin& plugin : plugins) {
         plugin.init();
+        spdlog::debug("Plugin [{}] ({}) was initialized.", plugin.GetId(),
+                      plugin.GetName());
     }
+    spdlog::debug("Plugin initialization complete.");
 
     pipeline.setPlugins(plugins);
     pipeline.initStages();

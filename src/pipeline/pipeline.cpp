@@ -28,8 +28,8 @@ Pipeline::Pipeline(const PipelineDefinition& def) {
     for (size_t i = 0; i < count; ++i) {
         const PipelineStageDefinition& stageDef = def.stages[i];
         Stages::AbstractStage* stage =
-            (i == 0) ? static_cast<Stages::AbstractStage*>(
-                           new Stages::SourceStage(stageDef))
+            (i == 0)           ? static_cast<Stages::AbstractStage*>(
+                                     new Stages::SourceStage(stageDef))
             : (i == count - 1) ? static_cast<Stages::AbstractStage*>(
                                      new Stages::SinkStage(stageDef))
                                : static_cast<Stages::AbstractStage*>(
@@ -40,7 +40,7 @@ Pipeline::Pipeline(const PipelineDefinition& def) {
 
 unordered_set<string> Pipeline::getHandlersInUse() {
     return stages | views::transform([](const Stages::AbstractStage* stage) {
-               return stage->handlerId;
+               return stage->GetHandlerId();
            }) |
            ranges::to<unordered_set<string>>();
 }
@@ -48,10 +48,13 @@ unordered_set<string> Pipeline::getHandlersInUse() {
 void Pipeline::setPlugins(vector<TorustiqCli::Plugins::StagePlugin>& plugins) {
     for (Stages::AbstractStage* stage : stages) {
         for (TorustiqCli::Plugins::StagePlugin& plugin : plugins) {
-            if (stage->handlerId == plugin.GetId()) {
-                stage->plugin = &plugin;
-                break;
+            if (stage->GetHandlerId() != plugin.GetId()) {
+                continue;
             }
+            stage->SetPlugin(&plugin);
+            spdlog::debug("Assigned plugin [{}] to stage '{}'", plugin.GetId(),
+                          stage->GetName());
+            break;
         }
     }
 }
@@ -59,6 +62,7 @@ void Pipeline::setPlugins(vector<TorustiqCli::Plugins::StagePlugin>& plugins) {
 void Pipeline::initStages() {
     for (Stages::AbstractStage* stage : stages) {
         stage->init();
+        spdlog::debug("Stage '{}' initialized.", stage->GetName());
     }
 }
 

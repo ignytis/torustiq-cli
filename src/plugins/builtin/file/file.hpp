@@ -1,18 +1,18 @@
-#ifndef _TORUSTIQ_CLI_PLUGINS_BUILTIN_STDIO_H_
-#define _TORUSTIQ_CLI_PLUGINS_BUILTIN_STDIO_H_
+#ifndef _TORUSTIQ_CLI_PLUGINS_BUILTIN_FILE_H_
+#define _TORUSTIQ_CLI_PLUGINS_BUILTIN_FILE_H_
 
 #include <torustiq_sdk/plugins/typedefs.h>
 
 namespace TorustiqCli {
 namespace Plugins {
 namespace Builtin {
-namespace Stdio {
+namespace File {
 
 const TorustiqPluginInfo GetPluginInfo();
 
 void InitPlugin();
 
-}  // namespace Stdio
+}  // namespace File
 }  // namespace Builtin
 }  // namespace Plugins
 }  // namespace TorustiqCli
