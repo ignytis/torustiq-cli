@@ -1,7 +1,12 @@
 #include "source_stage.hpp"
 
+#include "../../typedefs/pipeline/stage.hpp"
+#include "abstract_stage.hpp"
+#include "sender_stage.hpp"
+
+using TorustiqCli::Pipeline::Stages::SenderStage;
 using TorustiqCli::Pipeline::Stages::SourceStage;
 using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
 SourceStage::SourceStage(const PipelineStageDefinition& def)
-    : AbstractStage(def) {}
+    : SenderStage(def), AbstractStage(def) {}

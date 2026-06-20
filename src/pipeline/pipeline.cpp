@@ -8,6 +8,8 @@
 #include <unordered_set>
 
 #include "stages/processor_stage.hpp"
+#include "stages/receiver_stage.hpp"
+#include "stages/sender_stage.hpp"
 #include "stages/sink_stage.hpp"
 #include "stages/source_stage.hpp"
 
@@ -60,9 +62,23 @@ void Pipeline::setPlugins(vector<TorustiqCli::Plugins::StagePlugin>& plugins) {
 }
 
 void Pipeline::initStages() {
+    Stages::SenderStage* prevSenderStage = nullptr;
     for (Stages::AbstractStage* stage : stages) {
         stage->init();
         spdlog::debug("Stage '{}' initialized.", stage->GetName());
+
+        // Connect the output of the previous sender stage to the input of the
+        // current receiver stage
+        if (prevSenderStage != nullptr) {
+            Stages::ReceiverStage* stageRcvr =
+                dynamic_cast<Stages::ReceiverStage*>(stage);
+            prevSenderStage->SetOutputQueuePtr(stageRcvr->GetInputQueuePtr());
+            spdlog::debug(
+                "Connected output of stage '{}' to input of stage '{}'.",
+                prevSenderStage->GetName(), stageRcvr->GetName());
+        }
+
+        prevSenderStage = dynamic_cast<Stages::SenderStage*>(stage);
     }
 }
 

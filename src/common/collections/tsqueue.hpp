@@ -60,23 +60,6 @@ class TSQueue {
     }
 };
 
-// Driver code
-int main() {
-    TSQueue<int> q;
-
-    // Push some data
-    q.push(1);
-    q.push(2);
-    q.push(3);
-
-    // Pop some data
-    std::cout << q.pop() << std::endl;
-    std::cout << q.pop() << std::endl;
-    std::cout << q.pop() << std::endl;
-
-    return 0;
-}
-
 }  // namespace Collections
 }  // namespace Common
 }  // namespace TorustiqCli

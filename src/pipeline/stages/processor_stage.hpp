@@ -1,7 +1,8 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_PROCESSOR_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_PROCESSOR_STAGE_H_
 
-#include "abstract_stage.hpp"
+#include "receiver_stage.hpp"
+#include "sender_stage.hpp"
 
 namespace TorustiqCli {
 namespace Pipeline {
@@ -9,7 +10,8 @@ namespace Stages {
 
 /** A processor stage: accepts data from the previous stage, transforms it, and
  * passes it further */
-class ProcessorStage : public AbstractStage {
+class ProcessorStage : public virtual ReceiverStage,
+                       public virtual SenderStage {
    public:
     explicit ProcessorStage(
         const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def);

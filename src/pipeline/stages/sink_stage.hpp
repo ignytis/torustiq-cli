@@ -1,7 +1,8 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_SINK_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_SINK_STAGE_H_
 
-#include "abstract_stage.hpp"
+#include "../../typedefs/pipeline/stage.hpp"
+#include "receiver_stage.hpp"
 
 using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
@@ -11,7 +12,7 @@ namespace Stages {
 
 /** A sink stage: accepts input from the previous stage and outputs data without
  * passing it further */
-class SinkStage : public AbstractStage {
+class SinkStage : public virtual ReceiverStage {
    public:
     explicit SinkStage(const PipelineStageDefinition& def);
 };
