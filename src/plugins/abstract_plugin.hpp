@@ -25,9 +25,15 @@ class AbstractPlugin {
     string GetId() const;
     string GetName() const;
 
-   private:
+    void createNewStage();
+
+   protected:
     TorustiqPluginInitFnPtr InitPtr;
     TorustiqPluginGetInfoFnPtr GetInfoPtr;
+
+    TorustiqPluginStageHandle stageHandle;
+
+    TorustiqPlugin ffiPlugin;
 };
 
 }  // namespace Plugins

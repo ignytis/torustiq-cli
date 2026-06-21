@@ -10,6 +10,7 @@
 
 using TorustiqCli::Common::Collections::TSQueue;
 using TorustiqCli::Plugins::StagePlugin;
+using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
 namespace TorustiqCli {
 namespace Pipeline {
@@ -18,17 +19,15 @@ namespace Stages {
 /** Abstract base class for all pipeline stages */
 class AbstractStage {
    public:
-    explicit AbstractStage(
-        const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def);
+    explicit AbstractStage(const PipelineStageDefinition& def);
     virtual ~AbstractStage() = default;
 
     /** Initializes a stage */
-    virtual void init() {}
+    void Init();
     string GetHandlerId() const;
     string GetName() const;
 
     void SetPlugin(StagePlugin* plugin);
-
     void Start();
 
    protected:

@@ -11,5 +11,22 @@ const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::File::GetPluginInfo() {
     };
 }
 
+// TODO: implement stage creation and config value setting
+
+TorustiqPluginStageHandle
+TorustiqCli::Plugins::Builtin::File::CreateNewStage() {
+    return 0;
+}
+
+void TorustiqCli::Plugins::Builtin::File::SetConfigValue(
+    TorustiqPluginStageHandle stageHandle, const char* key, const char* value) {
+
+}
+
 // no action needed on initialization
-void TorustiqCli::Plugins::Builtin::File::InitPlugin() {}
+const TorustiqPlugin TorustiqCli::Plugins::Builtin::File::InitPlugin() {
+    return TorustiqPlugin{
+        .fn_create_new_stage = CreateNewStage,
+        .fn_set_config_value = SetConfigValue,
+    };
+}

@@ -10,7 +10,12 @@ namespace Stdio {
 
 const TorustiqPluginInfo GetPluginInfo();
 
-void InitPlugin();
+const TorustiqPlugin InitPlugin();
+
+TorustiqPluginStageHandle CreateNewStage();
+
+void SetConfigValue(TorustiqPluginStageHandle stageHandle, const char* key,
+                    const char* value);
 
 }  // namespace Stdio
 }  // namespace Builtin

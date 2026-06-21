@@ -3,10 +3,12 @@
 #include <spdlog/spdlog.h>
 
 using TorustiqCli::Pipeline::Stages::AbstractStage;
+using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
-AbstractStage::AbstractStage(
-    const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def)
+AbstractStage::AbstractStage(const PipelineStageDefinition& def)
     : name(def.name), handlerId(def.handler), config(def.config) {}
+
+void AbstractStage::Init() { this->plugin->createNewStage(); }
 
 string AbstractStage::GetName() const { return name; }
 

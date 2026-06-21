@@ -64,7 +64,7 @@ void Pipeline::setPlugins(vector<TorustiqCli::Plugins::StagePlugin>& plugins) {
 void Pipeline::initStages() {
     Stages::SenderStage* prevSenderStage = nullptr;
     for (Stages::AbstractStage* stage : stages) {
-        stage->init();
+        stage->Init();
         spdlog::debug("Stage '{}' initialized.", stage->GetName());
 
         // Connect the output of the previous sender stage to the input of the
