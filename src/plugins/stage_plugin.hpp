@@ -16,6 +16,7 @@ struct StagePluginConstructorArgs {
 class StagePlugin : public AbstractPlugin {
    public:
     StagePlugin(StagePluginConstructorArgs args);
+    void Start(TorustiqPluginStageHandle stageHandle);
 };
 }  // namespace Plugins
 }  // namespace TorustiqCli

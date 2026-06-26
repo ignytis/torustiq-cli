@@ -13,8 +13,8 @@ const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::Stdio::GetPluginInfo() {
 
 // TODO: implement stage creation and config value setting
 
-TorustiqPluginStageHandle
-TorustiqCli::Plugins::Builtin::Stdio::CreateNewStage() {
+TorustiqPluginStageHandle TorustiqCli::Plugins::Builtin::Stdio::CreateNewStage(
+    CreateNewStageFnArgs args) {
     return 0;
 }
 
@@ -23,10 +23,15 @@ void TorustiqCli::Plugins::Builtin::Stdio::SetConfigValue(
 
 }
 
-// no action needed on initialization
+void TorustiqCli::Plugins::Builtin::Stdio::Start(
+    TorustiqPluginStageHandle stageHandle) {
+    // No action needed.
+}
+
 const TorustiqPlugin TorustiqCli::Plugins::Builtin::Stdio::InitPlugin() {
     return TorustiqPlugin{
         .fn_create_new_stage = CreateNewStage,
         .fn_set_config_value = SetConfigValue,
+        .fn_stage_start = Start,
     };
 }

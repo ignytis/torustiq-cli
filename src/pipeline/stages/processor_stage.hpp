@@ -15,6 +15,8 @@ class ProcessorStage : public virtual ReceiverStage,
    public:
     explicit ProcessorStage(
         const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def);
+
+    virtual TorustiqPluginStageKind GetStageKind();
 };
 
 }  // namespace Stages

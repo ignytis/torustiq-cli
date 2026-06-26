@@ -17,6 +17,7 @@ class SenderStage : virtual public AbstractStage {
    public:
     explicit SenderStage(
         const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def);
+
     void SetOutputQueuePtr(TSQueue<TorustiqMessage>* queue);
 
    protected:

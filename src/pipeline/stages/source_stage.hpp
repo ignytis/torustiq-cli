@@ -14,6 +14,7 @@ namespace Stages {
 class SourceStage : public virtual SenderStage {
    public:
     explicit SourceStage(const PipelineStageDefinition& def);
+    TorustiqPluginStageKind GetStageKind();
 };
 
 }  // namespace Stages

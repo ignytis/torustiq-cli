@@ -30,12 +30,15 @@ class AbstractStage {
     void SetPlugin(StagePlugin* plugin);
     void Start();
 
+    virtual TorustiqPluginStageKind GetStageKind() = 0;
+
    protected:
     string handlerId;
     string name;
 
     StagePlugin* plugin = nullptr;
     ConfigKV config;
+    TorustiqPluginStageHandle stageHandle;
 };
 
 }  // namespace Stages

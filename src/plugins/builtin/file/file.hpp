@@ -12,10 +12,12 @@ const TorustiqPluginInfo GetPluginInfo();
 
 const TorustiqPlugin InitPlugin();
 
-TorustiqPluginStageHandle CreateNewStage();
+TorustiqPluginStageHandle CreateNewStage(CreateNewStageFnArgs args);
 
 void SetConfigValue(TorustiqPluginStageHandle stageHandle, const char* key,
                     const char* value);
+
+void Start(TorustiqPluginStageHandle stageHandle);
 
 }  // namespace File
 }  // namespace Builtin

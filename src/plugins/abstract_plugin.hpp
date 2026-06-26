@@ -25,13 +25,13 @@ class AbstractPlugin {
     string GetId() const;
     string GetName() const;
 
-    void createNewStage();
+    TorustiqPluginStageHandle createNewStage(TorustiqPluginStageKind stageKind);
+    void setConfigValue(TorustiqPluginStageHandle stageHandle, const char* key,
+                        const char* value);
 
    protected:
     TorustiqPluginInitFnPtr InitPtr;
     TorustiqPluginGetInfoFnPtr GetInfoPtr;
-
-    TorustiqPluginStageHandle stageHandle;
 
     TorustiqPlugin ffiPlugin;
 };

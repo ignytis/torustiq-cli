@@ -15,6 +15,7 @@ namespace Stages {
 class SinkStage : public virtual ReceiverStage {
    public:
     explicit SinkStage(const PipelineStageDefinition& def);
+    virtual TorustiqPluginStageKind GetStageKind();
 };
 
 }  // namespace Stages
