@@ -85,11 +85,19 @@ void Pipeline::initStages() {
 void Pipeline::start() {
     spdlog::debug("Starting the pipeline...");
     spdlog::debug("Starting stages in reverse order...");
+    vector<thread> stageThreads;
+    stageThreads.reserve(stages.size());
     for (int i = stages.size() - 1; i >= 0; i--) {
         Stages::AbstractStage* stage = stages.at(i);
-        stage->Start();
+        stageThreads.emplace_back([stage]() { stage->Start(); });
         spdlog::debug("Stage #{} '{}' started.", i, stage->GetName());
     }
-
     spdlog::debug("Pipeline started.");
+
+    for (thread& stageThread : stageThreads) {
+        if (stageThread.joinable()) {
+            stageThread.join();
+        }
+    }
+    spdlog::debug("All stages have completed execution.");
 }

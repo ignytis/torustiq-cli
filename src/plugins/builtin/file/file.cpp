@@ -9,17 +9,11 @@
 
 using namespace std;
 
-union FileStream {
-    ifstream* inFile;
-    ofstream* outFile;
-};
-
 class StageInstance {
    public:
     StageInstance(bool writer = false);
     string path;
     bool isWriter;  // true -> write file; false -> read file
-    FileStream fileStream;
 };
 
 StageInstance::StageInstance(bool writer) : isWriter(writer) {}
@@ -56,6 +50,22 @@ void TorustiqCli::Plugins::Builtin::File::SetConfigValue(
     }
 }
 
+// TODO: delete
+#include <iostream>
+void startReader(StageInstance* instance) {
+    // Open file for reading
+    ifstream file(instance->path);
+    string line;
+    while (getline(file, line)) {
+        cout << "Read line: " << line << endl;
+    }
+}
+
+void startWriter(StageInstance* instance) {
+    // Open file for writing
+    ofstream file(instance->path);
+}
+
 void TorustiqCli::Plugins::Builtin::File::Start(
     TorustiqPluginStageHandle stageHandle) {
     if (stageHandle >= stageInstances.size()) {
@@ -64,19 +74,9 @@ void TorustiqCli::Plugins::Builtin::File::Start(
     StageInstance& instance = stageInstances[stageHandle];
 
     if (instance.isWriter) {
-        // Open file for writing
-        instance.fileStream.outFile = new ofstream(instance.path);
-        if (!instance.fileStream.outFile) {
-            // Handle error opening file for writing
-            return;
-        }
+        startWriter(&instance);
     } else {
-        // Open file for reading
-        instance.fileStream.inFile = new ifstream(instance.path);
-        if (!instance.fileStream.inFile) {
-            // Handle error opening file for reading
-            return;
-        }
+        startReader(&instance);
     }
 }
 
