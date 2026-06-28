@@ -1,6 +1,6 @@
 #include "receiver_stage.hpp"
 
-using TorustiqCli::Pipeline::Stages::ReceiverStage;
+using TorustiqCli::Pipeline::Stages::Mixins::ReceiverStage;
 
 ReceiverStage::ReceiverStage(const PipelineStageDefinition& def)
     : AbstractStage(def) {}

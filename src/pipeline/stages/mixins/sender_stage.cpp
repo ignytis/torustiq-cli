@@ -1,6 +1,6 @@
 #include "sender_stage.hpp"
 
-using TorustiqCli::Pipeline::Stages::SenderStage;
+using TorustiqCli::Pipeline::Stages::Mixins::SenderStage;
 
 SenderStage::SenderStage(
     const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def)

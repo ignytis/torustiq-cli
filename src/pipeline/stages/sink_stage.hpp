@@ -2,7 +2,9 @@
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_SINK_STAGE_H_
 
 #include "../../typedefs/pipeline/stage.hpp"
-#include "receiver_stage.hpp"
+#include "mixins/receiver_stage.hpp"
+
+using TorustiqCli::Pipeline::Stages::Mixins::ReceiverStage;
 
 using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 

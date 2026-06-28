@@ -1,8 +1,9 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_SOURCE_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_SOURCE_STAGE_H_
 
-#include "sender_stage.hpp"
+#include "mixins/sender_stage.hpp"
 
+using TorustiqCli::Pipeline::Stages::Mixins::SenderStage;
 using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
 namespace TorustiqCli {

@@ -7,9 +7,9 @@
 #include <string>
 #include <unordered_set>
 
+#include "stages/mixins/receiver_stage.hpp"
+#include "stages/mixins/sender_stage.hpp"
 #include "stages/processor_stage.hpp"
-#include "stages/receiver_stage.hpp"
-#include "stages/sender_stage.hpp"
 #include "stages/sink_stage.hpp"
 #include "stages/source_stage.hpp"
 
@@ -18,6 +18,9 @@ using namespace std::ranges;
 
 using namespace TorustiqCli::Pipeline;
 using namespace TorustiqCli::Typedefs::Pipeline;
+
+using TorustiqCli::Pipeline::Stages::Mixins::ReceiverStage;
+using TorustiqCli::Pipeline::Stages::Mixins::SenderStage;
 
 Pipeline::Pipeline(const PipelineDefinition& def) {
     size_t count = def.stages.size();
@@ -62,7 +65,7 @@ void Pipeline::setPlugins(vector<TorustiqCli::Plugins::StagePlugin>& plugins) {
 }
 
 void Pipeline::initStages() {
-    Stages::SenderStage* prevSenderStage = nullptr;
+    SenderStage* prevSenderStage = nullptr;
     for (Stages::AbstractStage* stage : stages) {
         stage->Init();
         spdlog::debug("Stage '{}' initialized.", stage->GetName());
@@ -70,15 +73,14 @@ void Pipeline::initStages() {
         // Connect the output of the previous sender stage to the input of the
         // current receiver stage
         if (prevSenderStage != nullptr) {
-            Stages::ReceiverStage* stageRcvr =
-                dynamic_cast<Stages::ReceiverStage*>(stage);
+            ReceiverStage* stageRcvr = dynamic_cast<ReceiverStage*>(stage);
             prevSenderStage->SetOutputQueuePtr(stageRcvr->GetInputQueuePtr());
             spdlog::debug(
                 "Connected output of stage '{}' to input of stage '{}'.",
                 prevSenderStage->GetName(), stageRcvr->GetName());
         }
 
-        prevSenderStage = dynamic_cast<Stages::SenderStage*>(stage);
+        prevSenderStage = dynamic_cast<SenderStage*>(stage);
     }
 }
 

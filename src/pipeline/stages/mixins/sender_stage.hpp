@@ -1,13 +1,14 @@
-#ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_SENDER_STAGE_H_
-#define _TORUSTIQ_CLI_PIPELINE_STAGES_SENDER_STAGE_H_
+#ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_MIXINS_SENDER_STAGE_H_
+#define _TORUSTIQ_CLI_PIPELINE_STAGES_MIXINS_SENDER_STAGE_H_
 
-#include "abstract_stage.hpp"
+#include "../abstract_stage.hpp"
 
 using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
 namespace TorustiqCli {
 namespace Pipeline {
 namespace Stages {
+namespace Mixins {
 
 /**
  * @brief A sender stage: accepts an incoming payload from the previous stage
@@ -25,8 +26,9 @@ class SenderStage : virtual public AbstractStage {
     TSQueue<TorustiqMessage>* outputQueue = nullptr;
 };
 
+}  // namespace Mixins
 }  // namespace Stages
 }  // namespace Pipeline
 }  // namespace TorustiqCli
 
-#endif  // _TORUSTIQ_CLI_PIPELINE_STAGES_SENDER_STAGE_H_
+#endif  // _TORUSTIQ_CLI_PIPELINE_STAGES_MIXINS_SENDER_STAGE_H_
