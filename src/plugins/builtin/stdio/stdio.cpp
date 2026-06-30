@@ -4,6 +4,8 @@
 
 #include "../../../defs.hpp"
 
+TorustiqHostGlobals pluginStdioGlobals;
+
 const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::Stdio::GetPluginInfo() {
     return TorustiqPluginInfo{
         .host_app = APP_NAME,
@@ -32,6 +34,7 @@ void TorustiqCli::Plugins::Builtin::Stdio::Start(
 
 const TorustiqPlugin TorustiqCli::Plugins::Builtin::Stdio::InitPlugin(
     TorustiqHostGlobals globals) {
+    pluginStdioGlobals = globals;
     return TorustiqPlugin{
         .fn_create_new_stage = CreateNewStage,
         .fn_set_config_value = SetConfigValue,

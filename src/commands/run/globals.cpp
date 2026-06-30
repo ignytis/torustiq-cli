@@ -11,10 +11,15 @@ using TorustiqCli::Pipeline::Stages::Mixins::ReceiverStage;
 
 Pipeline* _PIPELINE = nullptr;
 
+#include <spdlog/spdlog.h>
+
 void setPipeline(Pipeline* pipeline) { _PIPELINE = pipeline; }
 
 void onMessageReceived(TorustiqPluginStageHandle stageHandle,
                        const TorustiqMessage* message) {
+    // TODO: deleteme
+    spdlog::debug("Received a message");
+
     if (_PIPELINE == nullptr) {
         // TODO: log error
         return;

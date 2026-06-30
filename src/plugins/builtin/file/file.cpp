@@ -21,6 +21,7 @@ class StageInstance {
 StageInstance::StageInstance(bool writer) : isWriter(writer) {}
 
 vector<StageInstance> stageInstances;
+TorustiqHostGlobals pluginFileGlobals;
 
 const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::File::GetPluginInfo() {
     return TorustiqPluginInfo{
@@ -54,16 +55,22 @@ void TorustiqCli::Plugins::Builtin::File::SetConfigValue(
 
 // TODO: delete
 #include <iostream>
-void startReader(StageInstance* instance) {
+void startReader(TorustiqPluginStageHandle stageHandle,
+                 StageInstance* instance) {
     // Open file for reading
     ifstream file(instance->path);
     string line;
     while (getline(file, line)) {
+        // TODO:
+        // 1. create a new instance of message
+        // 2. deallocate memory
+        pluginFileGlobals.sendMessageFnPtr(stageHandle, nullptr);
         cout << "Read line: " << line << endl;
     }
 }
 
-void startWriter(StageInstance* instance) {
+void startWriter(TorustiqPluginStageHandle stageHandle,
+                 StageInstance* instance) {
     // Open file for writing
     ofstream file(instance->path);
 }
@@ -76,15 +83,16 @@ void TorustiqCli::Plugins::Builtin::File::Start(
     StageInstance& instance = stageInstances[stageHandle];
 
     if (instance.isWriter) {
-        startWriter(&instance);
+        startWriter(stageHandle, &instance);
     } else {
-        startReader(&instance);
+        startReader(stageHandle, &instance);
     }
 }
 
 // no action needed on initialization
 const TorustiqPlugin TorustiqCli::Plugins::Builtin::File::InitPlugin(
     TorustiqHostGlobals globals) {
+    pluginFileGlobals = globals;
     return TorustiqPlugin{
         .fn_create_new_stage = CreateNewStage,
         .fn_set_config_value = SetConfigValue,
