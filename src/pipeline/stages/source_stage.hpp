@@ -1,6 +1,8 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_SOURCE_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_SOURCE_STAGE_H_
 
+#include <torustiq_sdk/plugins/typedefs.h>
+
 #include "mixins/sender_stage.hpp"
 
 using TorustiqCli::Pipeline::Stages::Mixins::SenderStage;
@@ -14,7 +16,8 @@ namespace Stages {
  * stage */
 class SourceStage : public virtual SenderStage {
    public:
-    explicit SourceStage(const PipelineStageDefinition& def);
+    explicit SourceStage(const PipelineStageDefinition& def,
+                         HostGlobals globals);
     TorustiqPluginStageKind GetStageKind();
 };
 

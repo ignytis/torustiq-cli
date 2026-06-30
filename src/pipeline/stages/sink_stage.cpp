@@ -11,8 +11,8 @@ using TorustiqCli::Pipeline::Stages::SinkStage;
 using TorustiqCli::Pipeline::Stages::Mixins::ReceiverStage;
 using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
-SinkStage::SinkStage(const PipelineStageDefinition& def)
-    : ReceiverStage(def), AbstractStage(def) {}
+SinkStage::SinkStage(const PipelineStageDefinition& def, HostGlobals globals)
+    : ReceiverStage(def), AbstractStage(def, globals) {}
 
 TorustiqPluginStageKind SinkStage::GetStageKind() {
     return TORUSTIQ_PLUGIN_STAGE_KIND_SINK;

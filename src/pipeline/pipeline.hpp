@@ -16,10 +16,6 @@ namespace Pipeline {
 
 using Typedefs::Pipeline::PipelineDefinition;
 
-struct PipelineGlobals {
-    TorustiqHostSendMessageFnPtr sendMessageFnPtr;
-};
-
 /** A pipeline containing a linear sequence of stages: one source, zero or more
  * processors, one sink */
 class Pipeline {
@@ -28,7 +24,7 @@ class Pipeline {
      * by position: first = source, last = sink, middle = processors.
      * @param module_dir Path to directory containing plugin libraries to load
      */
-    Pipeline(const PipelineDefinition& def, PipelineGlobals globals);
+    Pipeline(const PipelineDefinition& def, HostGlobals globals);
 
     /** Returns a set of handlers which are in use by pipeline */
     unordered_set<string> getHandlersInUse();

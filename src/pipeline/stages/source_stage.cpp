@@ -10,8 +10,9 @@ using TorustiqCli::Pipeline::Stages::SourceStage;
 using TorustiqCli::Pipeline::Stages::Mixins::SenderStage;
 using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
-SourceStage::SourceStage(const PipelineStageDefinition& def)
-    : SenderStage(def), AbstractStage(def) {}
+SourceStage::SourceStage(const PipelineStageDefinition& def,
+                         HostGlobals globals)
+    : SenderStage(def), AbstractStage(def, globals) {}
 
 TorustiqPluginStageKind SourceStage::GetStageKind() {
     return TORUSTIQ_PLUGIN_STAGE_KIND_SOURCE;

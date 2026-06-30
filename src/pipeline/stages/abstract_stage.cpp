@@ -5,8 +5,12 @@
 using TorustiqCli::Pipeline::Stages::AbstractStage;
 using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 
-AbstractStage::AbstractStage(const PipelineStageDefinition& def)
-    : name(def.name), handlerId(def.handler), config(def.config) {}
+AbstractStage::AbstractStage(const PipelineStageDefinition& def,
+                             HostGlobals globals)
+    : name(def.name),
+      handlerId(def.handler),
+      config(def.config),
+      globals(globals) {}
 
 void AbstractStage::Init() {
     this->stageHandle = this->plugin->createNewStage(this->GetStageKind());

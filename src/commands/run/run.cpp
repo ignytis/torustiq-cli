@@ -32,7 +32,7 @@ void RunCommand::run() {
 
     PipelineDefinition pipeDef =
         YAML::LoadFile(pipeline_path).as<PipelineDefinition>();
-    Pipeline::PipelineGlobals globals{.sendMessageFnPtr = onMessageReceived};
+    HostGlobals globals{.sendMessageFnPtr = onMessageReceived};
     Pipeline::Pipeline* pipeline = new Pipeline::Pipeline(pipeDef, globals);
     setPipeline(pipeline);
     spdlog::debug("Pipeline name: {}", pipeDef.name);

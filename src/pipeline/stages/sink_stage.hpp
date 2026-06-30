@@ -1,6 +1,8 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_SINK_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_SINK_STAGE_H_
 
+#include <torustiq_sdk/plugins/typedefs.h>
+
 #include "../../typedefs/pipeline/stage.hpp"
 #include "mixins/receiver_stage.hpp"
 
@@ -16,7 +18,7 @@ namespace Stages {
  * passing it further */
 class SinkStage : public virtual ReceiverStage {
    public:
-    explicit SinkStage(const PipelineStageDefinition& def);
+    explicit SinkStage(const PipelineStageDefinition& def, HostGlobals globals);
     virtual TorustiqPluginStageKind GetStageKind();
 };
 
