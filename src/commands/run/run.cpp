@@ -1,6 +1,7 @@
 #include "run.hpp"
 
 #include <spdlog/spdlog.h>
+#include <torustiq_sdk/plugins/typedefs.h>
 #include <yaml-cpp/yaml.h>
 
 #include <filesystem>
@@ -32,8 +33,7 @@ void RunCommand::run() {
 
     PipelineDefinition pipeDef =
         YAML::LoadFile(pipeline_path).as<PipelineDefinition>();
-    HostGlobals globals{.sendMessageFnPtr = onMessageReceived};
-    Pipeline::Pipeline* pipeline = new Pipeline::Pipeline(pipeDef, globals);
+    Pipeline::Pipeline* pipeline = new Pipeline::Pipeline(pipeDef);
     setPipeline(pipeline);
     spdlog::debug("Pipeline name: {}", pipeDef.name);
 
@@ -66,7 +66,9 @@ void RunCommand::run() {
 
     spdlog::debug("Initializing plugins...");
     for (StagePlugin& plugin : plugins) {
-        plugin.init();
+        plugin.Init(TorustiqHostGlobals{
+            .sendMessageFnPtr = onMessageReceived,
+        });
         spdlog::debug("Plugin [{}] ({}) was initialized.", plugin.GetId(),
                       plugin.GetName());
     }

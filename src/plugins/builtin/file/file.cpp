@@ -1,6 +1,8 @@
 
 #include "file.hpp"
 
+#include <torustiq_sdk/plugins/typedefs.h>
+
 #include <fstream>
 #include <string>
 #include <vector>
@@ -81,7 +83,8 @@ void TorustiqCli::Plugins::Builtin::File::Start(
 }
 
 // no action needed on initialization
-const TorustiqPlugin TorustiqCli::Plugins::Builtin::File::InitPlugin() {
+const TorustiqPlugin TorustiqCli::Plugins::Builtin::File::InitPlugin(
+    TorustiqHostGlobals globals) {
     return TorustiqPlugin{
         .fn_create_new_stage = CreateNewStage,
         .fn_set_config_value = SetConfigValue,

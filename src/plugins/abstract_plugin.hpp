@@ -20,7 +20,7 @@ class AbstractPlugin {
    public:
     AbstractPlugin(AbstractPluginConstructorArgs args);
 
-    void init();
+    void Init(TorustiqHostGlobals globals);
 
     string GetId() const;
     string GetName() const;

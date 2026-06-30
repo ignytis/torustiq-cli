@@ -1,8 +1,6 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_PROCESSOR_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_PROCESSOR_STAGE_H_
 
-#include <torustiq_sdk/plugins/typedefs.h>
-
 #include "mixins/receiver_stage.hpp"
 #include "mixins/sender_stage.hpp"
 
@@ -18,8 +16,7 @@ namespace Stages {
 class ProcessorStage : public virtual ReceiverStage,
                        public virtual SenderStage {
    public:
-    explicit ProcessorStage(const PipelineStageDefinition& def,
-                            HostGlobals globals);
+    explicit ProcessorStage(const PipelineStageDefinition& def);
 
     virtual TorustiqPluginStageKind GetStageKind();
 };

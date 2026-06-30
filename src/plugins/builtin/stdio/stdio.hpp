@@ -10,7 +10,7 @@ namespace Stdio {
 
 const TorustiqPluginInfo GetPluginInfo();
 
-const TorustiqPlugin InitPlugin();
+const TorustiqPlugin InitPlugin(TorustiqHostGlobals globals);
 
 TorustiqPluginStageHandle CreateNewStage(CreateNewStageFnArgs args);
 

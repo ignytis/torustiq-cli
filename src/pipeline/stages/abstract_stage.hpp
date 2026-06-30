@@ -1,8 +1,6 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_ABSTRACT_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_ABSTRACT_STAGE_H_
 
-#include <torustiq_sdk/plugins/typedefs.h>
-
 #include <string>
 
 #include "../../common/collections/tsqueue.hpp"
@@ -20,8 +18,7 @@ namespace Stages {
 /** Abstract base class for all pipeline stages */
 class AbstractStage {
    public:
-    explicit AbstractStage(const PipelineStageDefinition& def,
-                           HostGlobals globals);
+    explicit AbstractStage(const PipelineStageDefinition& def);
     virtual ~AbstractStage() = default;
 
     /** Initializes a stage */
@@ -41,8 +38,6 @@ class AbstractStage {
     StagePlugin* plugin = nullptr;
     ConfigKV config;
     TorustiqPluginStageHandle stageHandle;
-
-    HostGlobals globals;
 };
 
 }  // namespace Stages

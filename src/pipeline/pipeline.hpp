@@ -24,7 +24,7 @@ class Pipeline {
      * by position: first = source, last = sink, middle = processors.
      * @param module_dir Path to directory containing plugin libraries to load
      */
-    Pipeline(const PipelineDefinition& def, HostGlobals globals);
+    Pipeline(const PipelineDefinition& def);
 
     /** Returns a set of handlers which are in use by pipeline */
     unordered_set<string> getHandlersInUse();
