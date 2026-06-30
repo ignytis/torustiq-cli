@@ -22,7 +22,7 @@ using namespace TorustiqCli::Typedefs::Pipeline;
 using TorustiqCli::Pipeline::Stages::Mixins::ReceiverStage;
 using TorustiqCli::Pipeline::Stages::Mixins::SenderStage;
 
-Pipeline::Pipeline(const PipelineDefinition& def) {
+Pipeline::Pipeline(const PipelineDefinition& def, PipelineGlobals globals) {
     size_t count = def.stages.size();
     if (count < 2) {
         spdlog::error("Pipeline must have at least a source and a sink stage");
@@ -102,4 +102,9 @@ void Pipeline::start() {
         }
     }
     spdlog::debug("All stages have completed execution.");
+}
+
+Stages::AbstractStage* Pipeline::GetStagePtrByHandle(
+    TorustiqPluginStageHandle handle) {
+    return stages.at(handle);
 }

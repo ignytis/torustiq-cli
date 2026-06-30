@@ -5,6 +5,10 @@ using TorustiqCli::Pipeline::Stages::Mixins::ReceiverStage;
 ReceiverStage::ReceiverStage(const PipelineStageDefinition& def)
     : AbstractStage(def) {}
 
-TSQueue<TorustiqMessage>* ReceiverStage::GetInputQueuePtr() {
+TSQueue<const TorustiqMessage*>* ReceiverStage::GetInputQueuePtr() {
     return &inputQueue;
+}
+
+void ReceiverStage::OnMessageReceived(const TorustiqMessage* message) {
+    inputQueue.push(message);
 }

@@ -19,11 +19,12 @@ class ReceiverStage : virtual public AbstractStage {
     explicit ReceiverStage(
         const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def);
 
-    TSQueue<TorustiqMessage>* GetInputQueuePtr();
+    TSQueue<const TorustiqMessage*>* GetInputQueuePtr();
+    void OnMessageReceived(const TorustiqMessage* message);
 
    protected:
     /** The input queue for receiving messages */
-    TSQueue<TorustiqMessage> inputQueue;
+    TSQueue<const TorustiqMessage*> inputQueue;
 };
 
 }  // namespace Mixins

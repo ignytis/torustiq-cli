@@ -6,6 +6,6 @@ SenderStage::SenderStage(
     const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def)
     : AbstractStage(def) {}
 
-void SenderStage::SetOutputQueuePtr(TSQueue<TorustiqMessage>* queue) {
+void SenderStage::SetOutputQueuePtr(TSQueue<const TorustiqMessage*>* queue) {
     this->outputQueue = queue;
 }

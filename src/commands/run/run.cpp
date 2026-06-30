@@ -13,6 +13,7 @@
 #include "../../plugins/stage_plugin.hpp"
 #include "../../system/dll.hpp"
 #include "../../typedefs/pipeline/pipeline.hpp"
+#include "globals.hpp"
 
 using namespace std;
 using namespace std::ranges;
@@ -31,10 +32,12 @@ void RunCommand::run() {
 
     PipelineDefinition pipeDef =
         YAML::LoadFile(pipeline_path).as<PipelineDefinition>();
-    Pipeline::Pipeline pipeline = Pipeline::Pipeline(pipeDef);
+    Pipeline::PipelineGlobals globals{.sendMessageFnPtr = onMessageReceived};
+    Pipeline::Pipeline* pipeline = new Pipeline::Pipeline(pipeDef, globals);
+    setPipeline(pipeline);
     spdlog::debug("Pipeline name: {}", pipeDef.name);
 
-    unordered_set<string> handlers = pipeline.getHandlersInUse();
+    unordered_set<string> handlers = pipeline->getHandlersInUse();
     spdlog::debug("Pipeline handlers in use:");
     for (const string& handler : handlers) {
         spdlog::debug("- {}", handler);
@@ -69,8 +72,8 @@ void RunCommand::run() {
     }
     spdlog::debug("Plugin initialization complete.");
 
-    pipeline.setPlugins(plugins);
-    pipeline.initStages();
+    pipeline->setPlugins(plugins);
+    pipeline->initStages();
 
-    pipeline.start();
+    pipeline->start();
 }

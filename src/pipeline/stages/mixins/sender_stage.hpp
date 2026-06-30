@@ -19,11 +19,11 @@ class SenderStage : virtual public AbstractStage {
     explicit SenderStage(
         const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def);
 
-    void SetOutputQueuePtr(TSQueue<TorustiqMessage>* queue);
+    void SetOutputQueuePtr(TSQueue<const TorustiqMessage*>* queue);
 
    protected:
     /** The output queue for sending messages */
-    TSQueue<TorustiqMessage>* outputQueue = nullptr;
+    TSQueue<const TorustiqMessage*>* outputQueue = nullptr;
 };
 
 }  // namespace Mixins

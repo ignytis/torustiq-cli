@@ -1,6 +1,8 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_PIPELINE_H_
 #define _TORUSTIQ_CLI_PIPELINE_PIPELINE_H_
 
+#include <torustiq_sdk/plugins/typedefs.h>
+
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -12,6 +14,12 @@
 namespace TorustiqCli {
 namespace Pipeline {
 
+using Typedefs::Pipeline::PipelineDefinition;
+
+struct PipelineGlobals {
+    TorustiqHostSendMessageFnPtr sendMessageFnPtr;
+};
+
 /** A pipeline containing a linear sequence of stages: one source, zero or more
  * processors, one sink */
 class Pipeline {
@@ -20,7 +28,7 @@ class Pipeline {
      * by position: first = source, last = sink, middle = processors.
      * @param module_dir Path to directory containing plugin libraries to load
      */
-    Pipeline(const Typedefs::Pipeline::PipelineDefinition& def);
+    Pipeline(const PipelineDefinition& def, PipelineGlobals globals);
 
     /** Returns a set of handlers which are in use by pipeline */
     unordered_set<string> getHandlersInUse();
@@ -37,6 +45,9 @@ class Pipeline {
      * Starts a pipeline
      */
     void start();
+
+    Stages::AbstractStage* GetStagePtrByHandle(
+        TorustiqPluginStageHandle handle);
 
    private:
     vector<Stages::AbstractStage*> stages;

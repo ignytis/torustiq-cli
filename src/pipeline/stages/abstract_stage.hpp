@@ -5,7 +5,6 @@
 
 #include "../../common/collections/tsqueue.hpp"
 #include "../../plugins/stage_plugin.hpp"
-#include "../../typedefs/pipeline/message.h"
 #include "../../typedefs/pipeline/stage.hpp"
 
 using TorustiqCli::Common::Collections::TSQueue;
