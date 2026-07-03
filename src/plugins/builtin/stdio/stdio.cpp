@@ -2,9 +2,23 @@
 
 #include <torustiq_sdk/plugins/typedefs.h>
 
+#include <cstring>
+#include <iostream>
+#include <vector>
+
 #include "../../../defs.hpp"
 
-TorustiqHostGlobals pluginStdioGlobals;
+using namespace std;
+
+class StageInstance {
+   public:
+    bool isWriter;  // true -> stdout, false -> stdin
+};
+
+namespace {
+vector<StageInstance> stageInstances;
+TorustiqHostGlobals hostGlobals;
+}  // namespace
 
 const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::Stdio::GetPluginInfo() {
     return TorustiqPluginInfo{
@@ -27,14 +41,43 @@ void TorustiqCli::Plugins::Builtin::Stdio::SetConfigValue(
 
 }
 
+namespace {
+
+void startReader(TorustiqPluginStageHandle stageHandle,
+                 StageInstance* instance) {
+    string line;
+    while (std::getline(cin, line)) {
+        TorustiqMessage* msg =
+            (TorustiqMessage*)malloc(sizeof(TorustiqMessage));
+        msg->payload_size = line.size();
+        msg->payload = (uint8_t*)malloc(msg->payload_size);
+        memcpy(msg->payload, line.c_str(), msg->payload_size);
+        hostGlobals.sendMessageFnPtr(stageHandle, msg);
+        free(msg);
+    }
+}
+}  // namespace
+
+void startWriter(TorustiqPluginStageHandle stageHandle,
+                 StageInstance* instance) {}
+
 void TorustiqCli::Plugins::Builtin::Stdio::Start(
     TorustiqPluginStageHandle stageHandle) {
-    // No action needed.
+    if (stageHandle >= stageInstances.size()) {
+        return;
+    }
+    StageInstance& instance = stageInstances[stageHandle];
+
+    if (instance.isWriter) {
+        startWriter(stageHandle, &instance);
+    } else {
+        startReader(stageHandle, &instance);
+    }
 }
 
 const TorustiqPlugin TorustiqCli::Plugins::Builtin::Stdio::InitPlugin(
     TorustiqHostGlobals globals) {
-    pluginStdioGlobals = globals;
+    hostGlobals = globals;
     return TorustiqPlugin{
         .fn_create_new_stage = CreateNewStage,
         .fn_set_config_value = SetConfigValue,

@@ -3,7 +3,9 @@
 
 #include <torustiq_sdk/plugins/typedefs.h>
 
+#include <cstring>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -20,8 +22,10 @@ class StageInstance {
 
 StageInstance::StageInstance(bool writer) : isWriter(writer) {}
 
+namespace {
 vector<StageInstance> stageInstances;
-TorustiqHostGlobals pluginFileGlobals;
+TorustiqHostGlobals hostGlobals;
+}  // namespace
 
 const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::File::GetPluginInfo() {
     return TorustiqPluginInfo{
@@ -53,8 +57,9 @@ void TorustiqCli::Plugins::Builtin::File::SetConfigValue(
     }
 }
 
+namespace {
+
 // TODO: delete
-#include <iostream>
 void startReader(TorustiqPluginStageHandle stageHandle,
                  StageInstance* instance) {
     // Open file for reading
@@ -64,7 +69,13 @@ void startReader(TorustiqPluginStageHandle stageHandle,
         // TODO:
         // 1. create a new instance of message
         // 2. deallocate memory
-        pluginFileGlobals.sendMessageFnPtr(stageHandle, nullptr);
+        TorustiqMessage* msg =
+            (TorustiqMessage*)malloc(sizeof(TorustiqMessage));
+        msg->payload_size = line.size();
+        msg->payload = (uint8_t*)malloc(msg->payload_size);
+        memcpy(msg->payload, line.c_str(), msg->payload_size);
+        hostGlobals.sendMessageFnPtr(stageHandle, msg);
+        free(msg);
         cout << "Read line: " << line << endl;
     }
 }
@@ -74,6 +85,8 @@ void startWriter(TorustiqPluginStageHandle stageHandle,
     // Open file for writing
     ofstream file(instance->path);
 }
+
+}  // namespace
 
 void TorustiqCli::Plugins::Builtin::File::Start(
     TorustiqPluginStageHandle stageHandle) {
@@ -92,7 +105,7 @@ void TorustiqCli::Plugins::Builtin::File::Start(
 // no action needed on initialization
 const TorustiqPlugin TorustiqCli::Plugins::Builtin::File::InitPlugin(
     TorustiqHostGlobals globals) {
-    pluginFileGlobals = globals;
+    hostGlobals = globals;
     return TorustiqPlugin{
         .fn_create_new_stage = CreateNewStage,
         .fn_set_config_value = SetConfigValue,

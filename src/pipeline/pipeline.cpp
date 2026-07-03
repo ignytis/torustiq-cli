@@ -101,7 +101,7 @@ void Pipeline::start() {
             stageThread.join();
         }
     }
-    spdlog::debug("All stages have completed execution.");
+    spdlog::debug("All stages have completed execution. Pipeline terminated.");
 }
 
 Stages::AbstractStage* Pipeline::GetStagePtrByHandle(

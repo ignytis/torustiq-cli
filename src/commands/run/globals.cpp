@@ -18,7 +18,7 @@ void setPipeline(Pipeline* pipeline) { _PIPELINE = pipeline; }
 void onMessageReceived(TorustiqPluginStageHandle stageHandle,
                        const TorustiqMessage* message) {
     // TODO: deleteme
-    spdlog::debug("Received a message");
+    spdlog::debug("Message globals :: Received a message");
 
     if (_PIPELINE == nullptr) {
         // TODO: log error
