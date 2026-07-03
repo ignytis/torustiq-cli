@@ -13,6 +13,11 @@
 
 using namespace std;
 
+namespace {
+
+/**
+ * Represents an instance of a file stage.
+ */
 class StageInstance {
    public:
     StageInstance(bool writer = false);
@@ -22,9 +27,9 @@ class StageInstance {
 
 StageInstance::StageInstance(bool writer) : isWriter(writer) {}
 
-namespace {
 vector<StageInstance> stageInstances;
 TorustiqHostGlobals hostGlobals;
+
 }  // namespace
 
 const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::File::GetPluginInfo() {
@@ -46,7 +51,7 @@ TorustiqPluginStageHandle TorustiqCli::Plugins::Builtin::File::CreateNewStage(
     return stageInstances.size() - 1;
 }
 
-void TorustiqCli::Plugins::Builtin::File::SetConfigValue(
+void TorustiqCli::Plugins::Builtin::File::SetStageConfigValue(
     TorustiqPluginStageHandle stageHandle, const char* key, const char* value) {
     if (stageHandle >= stageInstances.size()) {
         return;
@@ -107,8 +112,8 @@ const TorustiqPlugin TorustiqCli::Plugins::Builtin::File::InitPlugin(
     TorustiqHostGlobals globals) {
     hostGlobals = globals;
     return TorustiqPlugin{
-        .fn_create_new_stage = CreateNewStage,
-        .fn_set_config_value = SetConfigValue,
+        .fn_stage_create_new = CreateNewStage,
+        .fn_stage_set_config_value = SetStageConfigValue,
         .fn_stage_start = Start,
     };
 }

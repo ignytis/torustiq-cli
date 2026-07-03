@@ -20,7 +20,8 @@ class ReceiverStage : virtual public AbstractStage {
         const TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition& def);
 
     TSQueue<const TorustiqMessage*>* GetInputQueuePtr();
-    void OnMessageReceived(const TorustiqMessage* message);
+    void PushMessage(const TorustiqMessage* message);
+    const TorustiqMessage* PopMessage();
 
    protected:
     /** The input queue for receiving messages */

@@ -9,6 +9,10 @@ TSQueue<const TorustiqMessage*>* ReceiverStage::GetInputQueuePtr() {
     return &inputQueue;
 }
 
-void ReceiverStage::OnMessageReceived(const TorustiqMessage* message) {
+void ReceiverStage::PushMessage(const TorustiqMessage* message) {
     inputQueue.push(message);
+}
+
+const TorustiqMessage* ReceiverStage::PopMessage() {
+    return inputQueue.pop();
 }

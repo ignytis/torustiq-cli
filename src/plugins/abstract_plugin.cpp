@@ -17,12 +17,12 @@ string AbstractPlugin::GetName() const { return GetInfoPtr().name; }
 
 TorustiqPluginStageHandle AbstractPlugin::createNewStage(
     TorustiqPluginStageKind stageKind) {
-    return ffiPlugin.fn_create_new_stage(CreateNewStageFnArgs{
+    return ffiPlugin.fn_stage_create_new(CreateNewStageFnArgs{
         .stageKind = stageKind,
     });
 }
 
 void AbstractPlugin::setConfigValue(TorustiqPluginStageHandle stageHandle,
                                     const char* key, const char* value) {
-    ffiPlugin.fn_set_config_value(stageHandle, key, value);
+    ffiPlugin.fn_stage_set_config_value(stageHandle, key, value);
 }

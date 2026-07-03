@@ -1,5 +1,6 @@
 #include "stdio.hpp"
 
+#include <spdlog/spdlog.h>
 #include <torustiq_sdk/plugins/typedefs.h>
 
 #include <cstring>
@@ -10,14 +11,19 @@
 
 using namespace std;
 
+namespace {
+
+/**
+ * Represents an instance of a standard input/output stage.
+ */
 class StageInstance {
    public:
     bool isWriter;  // true -> stdout, false -> stdin
 };
 
-namespace {
 vector<StageInstance> stageInstances;
 TorustiqHostGlobals hostGlobals;
+
 }  // namespace
 
 const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::Stdio::GetPluginInfo() {
@@ -29,22 +35,43 @@ const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::Stdio::GetPluginInfo() {
     };
 }
 
-// TODO: implement stage creation and config value setting
+const TorustiqPlugin TorustiqCli::Plugins::Builtin::Stdio::InitPlugin(
+    TorustiqHostGlobals globals) {
+    hostGlobals = globals;
+    return TorustiqPlugin{
+        .fn_stage_create_new = CreateNewStage,
+        .fn_stage_set_config_value = SetStageConfigValue,
+        .fn_stage_start = Start,
+    };
+}
 
 TorustiqPluginStageHandle TorustiqCli::Plugins::Builtin::Stdio::CreateNewStage(
     CreateNewStageFnArgs args) {
-    return 0;
+    // TODO: error handling. What if processor kind is passed? We have to return
+    // an error.
+    StageInstance newInstance;
+    newInstance.isWriter = (args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK);
+    stageInstances.push_back(newInstance);
+    return stageInstances.size() - 1;
 }
 
-void TorustiqCli::Plugins::Builtin::Stdio::SetConfigValue(
+void TorustiqCli::Plugins::Builtin::Stdio::SetStageConfigValue(
     TorustiqPluginStageHandle stageHandle, const char* key, const char* value) {
-
+    if (stageHandle >= stageInstances.size()) {
+        return;
+    }
+    StageInstance& instance = stageInstances[stageHandle];
+    // TODO: add config here. At least we might have message format for output
+    // here An idea: I/O mode: reading line by line vs processing the whole
+    // stream
 }
 
 namespace {
 
 void startReader(TorustiqPluginStageHandle stageHandle,
                  StageInstance* instance) {
+    spdlog::debug("stdio :: Starting reader stage with handle {}", stageHandle);
+
     string line;
     while (std::getline(cin, line)) {
         TorustiqMessage* msg =
@@ -59,7 +86,32 @@ void startReader(TorustiqPluginStageHandle stageHandle,
 }  // namespace
 
 void startWriter(TorustiqPluginStageHandle stageHandle,
-                 StageInstance* instance) {}
+                 StageInstance* instance) {
+    spdlog::debug("stdio :: Starting writer stage with handle {}", stageHandle);
+
+    while (true) {
+        const TorustiqMessage* msg = hostGlobals.receiveMessageFnPtr(stageHandle);
+        if (msg == nullptr) {
+            spdlog::error("stdio :: Empty pointer received"); // todo: figure out mode reasonable message
+            break;
+        }
+
+        if (msg->type == TORUSTIQ_MESSAGE_TYPE_EOF) {
+            spdlog::debug("stdio :: Received EOF message. Exiting writer stage.");
+            break;
+        }
+
+        if (msg->type == TORUSTIQ_MESSAGE_TYPE_DATA) {
+            string line(reinterpret_cast<const char*>(msg->payload),
+                        msg->payload_size);
+            cout << line << endl;
+        }
+    }
+
+
+
+    
+}
 
 void TorustiqCli::Plugins::Builtin::Stdio::Start(
     TorustiqPluginStageHandle stageHandle) {
@@ -73,14 +125,4 @@ void TorustiqCli::Plugins::Builtin::Stdio::Start(
     } else {
         startReader(stageHandle, &instance);
     }
-}
-
-const TorustiqPlugin TorustiqCli::Plugins::Builtin::Stdio::InitPlugin(
-    TorustiqHostGlobals globals) {
-    hostGlobals = globals;
-    return TorustiqPlugin{
-        .fn_create_new_stage = CreateNewStage,
-        .fn_set_config_value = SetConfigValue,
-        .fn_stage_start = Start,
-    };
 }

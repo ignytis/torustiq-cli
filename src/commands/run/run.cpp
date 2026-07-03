@@ -67,7 +67,8 @@ void RunCommand::run() {
     spdlog::debug("Initializing plugins...");
     for (StagePlugin& plugin : plugins) {
         plugin.Init(TorustiqHostGlobals{
-            .sendMessageFnPtr = onMessageReceived,
+            .receiveMessageFnPtr    = messageReceiver,
+            .sendMessageFnPtr       = messageSender,
         });
         spdlog::debug("Plugin [{}] ({}) was initialized.", plugin.GetId(),
                       plugin.GetName());

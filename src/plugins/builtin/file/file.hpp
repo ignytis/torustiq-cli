@@ -14,8 +14,8 @@ const TorustiqPlugin InitPlugin(TorustiqHostGlobals globals);
 
 TorustiqPluginStageHandle CreateNewStage(CreateNewStageFnArgs args);
 
-void SetConfigValue(TorustiqPluginStageHandle stageHandle, const char* key,
-                    const char* value);
+void SetStageConfigValue(TorustiqPluginStageHandle stageHandle, const char* key,
+                         const char* value);
 
 void Start(TorustiqPluginStageHandle stageHandle);
 
