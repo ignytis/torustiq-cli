@@ -66,8 +66,9 @@ void Pipeline::setPlugins(vector<TorustiqCli::Plugins::StagePlugin>& plugins) {
 
 void Pipeline::initStages() {
     SenderStage* prevSenderStage = nullptr;
+    TorustiqPluginStageHandle stageHandle = 0;
     for (Stages::AbstractStage* stage : stages) {
-        stage->Init();
+        stage->Init(stageHandle);
         spdlog::debug("Stage '{}' initialized.", stage->GetName());
 
         // Connect the output of the previous sender stage to the input of the
@@ -81,6 +82,7 @@ void Pipeline::initStages() {
         }
 
         prevSenderStage = dynamic_cast<SenderStage*>(stage);
+        stageHandle++;
     }
 }
 

@@ -1,6 +1,8 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_ABSTRACT_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_ABSTRACT_STAGE_H_
 
+#include <torustiq_sdk/plugins/typedefs.h>
+
 #include <string>
 
 #include "../../common/collections/tsqueue.hpp"
@@ -22,7 +24,7 @@ class AbstractStage {
     virtual ~AbstractStage() = default;
 
     /** Initializes a stage */
-    void Init();
+    void Init(TorustiqPluginStageHandle stageHandle);
     string GetHandlerId() const;
     string GetName() const;
 

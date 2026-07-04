@@ -8,8 +8,9 @@ using TorustiqCli::Typedefs::Pipeline::PipelineStageDefinition;
 AbstractStage::AbstractStage(const PipelineStageDefinition& def)
     : name(def.name), handlerId(def.handler), config(def.config) {}
 
-void AbstractStage::Init() {
-    this->stageHandle = this->plugin->createNewStage(this->GetStageKind());
+void AbstractStage::Init(TorustiqPluginStageHandle stageHandle) {
+    this->stageHandle = stageHandle;
+    this->plugin->createNewStage(stageHandle, this->GetStageKind());
     for (const auto& [key, value] : config) {
         this->plugin->setConfigValue(this->stageHandle, key.c_str(),
                                      value.c_str());

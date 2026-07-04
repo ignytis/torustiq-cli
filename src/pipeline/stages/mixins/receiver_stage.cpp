@@ -13,6 +13,4 @@ void ReceiverStage::PushMessage(const TorustiqMessage* message) {
     inputQueue.push(message);
 }
 
-const TorustiqMessage* ReceiverStage::PopMessage() {
-    return inputQueue.pop();
-}
+const TorustiqMessage* ReceiverStage::PopMessage() { return inputQueue.pop(); }

@@ -5,7 +5,7 @@
 
 #include <cstring>
 #include <iostream>
-#include <vector>
+#include <map>
 
 #include "../../../defs.hpp"
 
@@ -18,10 +18,11 @@ namespace {
  */
 class StageInstance {
    public:
+    TorustiqPluginStageHandle stageHandle;
     bool isWriter;  // true -> stdout, false -> stdin
 };
 
-vector<StageInstance> stageInstances;
+map<TorustiqPluginStageHandle, StageInstance> stageInstances;
 TorustiqHostGlobals hostGlobals;
 
 }  // namespace
@@ -45,14 +46,16 @@ const TorustiqPlugin TorustiqCli::Plugins::Builtin::Stdio::InitPlugin(
     };
 }
 
-TorustiqPluginStageHandle TorustiqCli::Plugins::Builtin::Stdio::CreateNewStage(
+void TorustiqCli::Plugins::Builtin::Stdio::CreateNewStage(
     CreateNewStageFnArgs args) {
     // TODO: error handling. What if processor kind is passed? We have to return
     // an error.
+
     StageInstance newInstance;
     newInstance.isWriter = (args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK);
-    stageInstances.push_back(newInstance);
-    return stageInstances.size() - 1;
+    newInstance.stageHandle = args.stageHandle;
+
+    stageInstances[args.stageHandle] = newInstance;
 }
 
 void TorustiqCli::Plugins::Builtin::Stdio::SetStageConfigValue(
@@ -90,14 +93,18 @@ void startWriter(TorustiqPluginStageHandle stageHandle,
     spdlog::debug("stdio :: Starting writer stage with handle {}", stageHandle);
 
     while (true) {
-        const TorustiqMessage* msg = hostGlobals.receiveMessageFnPtr(stageHandle);
+        const TorustiqMessage* msg =
+            hostGlobals.receiveMessageFnPtr(stageHandle);
         if (msg == nullptr) {
-            spdlog::error("stdio :: Empty pointer received"); // todo: figure out mode reasonable message
+            spdlog::error(
+                "stdio :: Empty pointer received");  // todo: figure out mode
+                                                     // reasonable message
             break;
         }
 
         if (msg->type == TORUSTIQ_MESSAGE_TYPE_EOF) {
-            spdlog::debug("stdio :: Received EOF message. Exiting writer stage.");
+            spdlog::debug(
+                "stdio :: Received EOF message. Exiting writer stage.");
             break;
         }
 
@@ -107,15 +114,12 @@ void startWriter(TorustiqPluginStageHandle stageHandle,
             cout << line << endl;
         }
     }
-
-
-
-    
 }
 
 void TorustiqCli::Plugins::Builtin::Stdio::Start(
     TorustiqPluginStageHandle stageHandle) {
-    if (stageHandle >= stageInstances.size()) {
+    if (!stageInstances.contains(stageHandle)) {
+        spdlog::error("stdio :: Stage handle not found: {}", stageHandle);
         return;
     }
     StageInstance& instance = stageInstances[stageHandle];

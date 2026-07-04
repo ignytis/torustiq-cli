@@ -16,12 +16,10 @@ Pipeline* _PIPELINE = nullptr;
 void setPipeline(Pipeline* pipeline) { _PIPELINE = pipeline; }
 
 void messageSender(TorustiqPluginStageHandle stageHandle,
-                       const TorustiqMessage* message) {
-    // TODO: deleteme
-    spdlog::debug("Message globals :: Sent a message from handle {}", stageHandle);
-
+                   const TorustiqMessage* message) {
     if (_PIPELINE == nullptr) {
-        spdlog::error("Message globals :: messageSender :: pipeline is not initialized");
+        spdlog::error(
+            "Message globals :: messageSender :: pipeline is not initialized");
         return;
     }
 
@@ -29,7 +27,10 @@ void messageSender(TorustiqPluginStageHandle stageHandle,
     ReceiverStage* receiverStage = dynamic_cast<ReceiverStage*>(
         _PIPELINE->GetStagePtrByHandle(stageHandle + 1));
     if (receiverStage == nullptr) {
-        spdlog::error("Message globals :: messageSender :: stage with handle {} is not a sender stage", stageHandle);
+        spdlog::error(
+            "Message globals :: messageSender :: stage with handle {} is not a "
+            "sender stage",
+            stageHandle);
         return;
     }
 
@@ -37,11 +38,10 @@ void messageSender(TorustiqPluginStageHandle stageHandle,
 }
 
 const TorustiqMessage* messageReceiver(TorustiqPluginStageHandle stageHandle) {
-    // TODO: deleteme
-    spdlog::debug("Message globals :: Received a message in handle {}", stageHandle);
-
     if (_PIPELINE == nullptr) {
-        spdlog::error("Message globals :: messageReceiver :: pipeline is not initialized");
+        spdlog::error(
+            "Message globals :: messageReceiver :: pipeline is not "
+            "initialized");
         return nullptr;
     }
 
@@ -49,10 +49,12 @@ const TorustiqMessage* messageReceiver(TorustiqPluginStageHandle stageHandle) {
     ReceiverStage* receiverStage = dynamic_cast<ReceiverStage*>(
         _PIPELINE->GetStagePtrByHandle(stageHandle));
     if (receiverStage == nullptr) {
-        spdlog::error("Message globals :: messageReceiver :: stage with handle {} is not a receiver stage", stageHandle);
+        spdlog::error(
+            "Message globals :: messageReceiver :: stage with handle {} is not "
+            "a receiver stage",
+            stageHandle);
         return nullptr;
     }
-    spdlog::debug("Message globals :: messageReceiver :: sending a message from handerl {}", stageHandle);
 
     return receiverStage->PopMessage();
 }

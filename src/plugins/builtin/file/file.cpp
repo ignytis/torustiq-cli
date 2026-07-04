@@ -1,13 +1,14 @@
 
 #include "file.hpp"
 
+#include <spdlog/spdlog.h>
 #include <torustiq_sdk/plugins/typedefs.h>
 
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <string>
-#include <vector>
 
 #include "../../../defs.hpp"
 
@@ -21,13 +22,15 @@ namespace {
 class StageInstance {
    public:
     StageInstance(bool writer = false);
+    TorustiqPluginStageHandle stageHandle;
     string path;
     bool isWriter;  // true -> write file; false -> read file
 };
 
 StageInstance::StageInstance(bool writer) : isWriter(writer) {}
 
-vector<StageInstance> stageInstances;
+map<TorustiqPluginStageHandle, StageInstance> stageInstances;
+
 TorustiqHostGlobals hostGlobals;
 
 }  // namespace
@@ -41,14 +44,15 @@ const TorustiqPluginInfo TorustiqCli::Plugins::Builtin::File::GetPluginInfo() {
     };
 }
 
-TorustiqPluginStageHandle TorustiqCli::Plugins::Builtin::File::CreateNewStage(
+void TorustiqCli::Plugins::Builtin::File::CreateNewStage(
     CreateNewStageFnArgs args) {
     // TODO: error handling. What if processor kind is passed? We have to return
     // an error.
     StageInstance newInstance;
     newInstance.isWriter = (args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK);
-    stageInstances.push_back(newInstance);
-    return stageInstances.size() - 1;
+    newInstance.stageHandle = args.stageHandle;
+
+    stageInstances[args.stageHandle] = newInstance;
 }
 
 void TorustiqCli::Plugins::Builtin::File::SetStageConfigValue(
@@ -68,6 +72,7 @@ namespace {
 void startReader(TorustiqPluginStageHandle stageHandle,
                  StageInstance* instance) {
     // Open file for reading
+    spdlog::debug("file :: Starting reader stage with handle {}", stageHandle);
     ifstream file(instance->path);
     string line;
     while (getline(file, line)) {
@@ -76,18 +81,26 @@ void startReader(TorustiqPluginStageHandle stageHandle,
         // 2. deallocate memory
         TorustiqMessage* msg =
             (TorustiqMessage*)malloc(sizeof(TorustiqMessage));
+        msg->type = TORUSTIQ_MESSAGE_TYPE_DATA;
         msg->payload_size = line.size();
         msg->payload = (uint8_t*)malloc(msg->payload_size);
         memcpy(msg->payload, line.c_str(), msg->payload_size);
         hostGlobals.sendMessageFnPtr(stageHandle, msg);
-        free(msg);
-        cout << "Read line: " << line << endl;
+        // free(msg);
     }
+
+    // Notify about end of file
+    TorustiqMessage* msg = (TorustiqMessage*)malloc(sizeof(TorustiqMessage));
+    msg->type = TORUSTIQ_MESSAGE_TYPE_EOF;
+    hostGlobals.sendMessageFnPtr(stageHandle, msg);
+
+    spdlog::debug("file :: Reached EOF in reader with handle {}", stageHandle);
 }
 
 void startWriter(TorustiqPluginStageHandle stageHandle,
                  StageInstance* instance) {
     // Open file for writing
+    spdlog::debug("file :: Starting writer stage with handle {}", stageHandle);
     ofstream file(instance->path);
 }
 
@@ -95,9 +108,11 @@ void startWriter(TorustiqPluginStageHandle stageHandle,
 
 void TorustiqCli::Plugins::Builtin::File::Start(
     TorustiqPluginStageHandle stageHandle) {
-    if (stageHandle >= stageInstances.size()) {
+    if (!stageInstances.contains(stageHandle)) {
+        spdlog::error("stdio :: Stage handle not found: {}", stageHandle);
         return;
     }
+
     StageInstance& instance = stageInstances[stageHandle];
 
     if (instance.isWriter) {

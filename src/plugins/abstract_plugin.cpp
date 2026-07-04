@@ -14,10 +14,12 @@ void AbstractPlugin::Init(TorustiqHostGlobals globals) {
 string AbstractPlugin::GetId() const { return GetInfoPtr().id; }
 
 string AbstractPlugin::GetName() const { return GetInfoPtr().name; }
-
-TorustiqPluginStageHandle AbstractPlugin::createNewStage(
-    TorustiqPluginStageKind stageKind) {
-    return ffiPlugin.fn_stage_create_new(CreateNewStageFnArgs{
+#include <spdlog/spdlog.h>
+void AbstractPlugin::createNewStage(TorustiqPluginStageHandle stageHandle,
+                                    TorustiqPluginStageKind stageKind) {
+    spdlog::debug("-- Creating new stage with handle {}", stageHandle);
+    ffiPlugin.fn_stage_create_new(CreateNewStageFnArgs{
+        .stageHandle = stageHandle,
         .stageKind = stageKind,
     });
 }

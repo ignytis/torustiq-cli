@@ -15,7 +15,7 @@ using TorustiqCli::Pipeline::Pipeline;
 void setPipeline(Pipeline* pipeline);
 
 void messageSender(TorustiqPluginStageHandle stageHandle,
-                       const TorustiqMessage* message);
+                   const TorustiqMessage* message);
 
 const TorustiqMessage* messageReceiver(TorustiqPluginStageHandle stageHandle);
 

@@ -12,7 +12,7 @@ const TorustiqPluginInfo GetPluginInfo();
 
 const TorustiqPlugin InitPlugin(TorustiqHostGlobals globals);
 
-TorustiqPluginStageHandle CreateNewStage(CreateNewStageFnArgs args);
+void CreateNewStage(CreateNewStageFnArgs args);
 
 void SetStageConfigValue(TorustiqPluginStageHandle stageHandle, const char* key,
                          const char* value);

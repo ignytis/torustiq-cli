@@ -25,7 +25,8 @@ class AbstractPlugin {
     string GetId() const;
     string GetName() const;
 
-    TorustiqPluginStageHandle createNewStage(TorustiqPluginStageKind stageKind);
+    void createNewStage(TorustiqPluginStageHandle stageHandle,
+                        TorustiqPluginStageKind stageKind);
     void setConfigValue(TorustiqPluginStageHandle stageHandle, const char* key,
                         const char* value);
 
