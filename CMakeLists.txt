@@ -8,7 +8,7 @@ string(JSON APP_DESCRIPTION GET ${PROJECT_INFO} description)
 
 string(TOLOWER ${APP_NAME} APP_NAME_LOWERCASE)
 
-project(${APP_NAME} VERSION ${APP_VERSION} LANGUAGES CXX)
+project(${APP_NAME} VERSION ${APP_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,8 +29,11 @@ find_path(TORUSTIQ_SDK_INCLUDE_DIR
     REQUIRED
 )
 
-add_library(torustiq_sdk INTERFACE)
-target_include_directories(torustiq_sdk INTERFACE ${TORUSTIQ_SDK_INCLUDE_DIR})
+add_library(torustiq_sdk STATIC
+    # Could this list be generated the same way as SOURCES?
+    ${TORUSTIQ_SDK_INCLUDE_DIR}/../src/message.c
+)
+target_include_directories(torustiq_sdk PUBLIC ${TORUSTIQ_SDK_INCLUDE_DIR})
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_executable(${APP_NAME_LOWERCASE} ${SOURCES})

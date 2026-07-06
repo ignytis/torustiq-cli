@@ -1,5 +1,6 @@
 #include "globals.hpp"
 
+#include <torustiq_sdk/message.h>
 #include <torustiq_sdk/plugins/typedefs.h>
 
 #include "../../pipeline/pipeline.hpp"
@@ -34,7 +35,10 @@ void messageSender(TorustiqPluginStageHandle stageHandle,
         return;
     }
 
-    receiverStage->PushMessage(message);
+    // Create a copy of the message where all the data is owned by the receiver
+    // stage. The sender stage will free its own message after sending it.
+    TorustiqMessage* messageOwned = torustiq_message_clone(message);
+    receiverStage->PushMessage(messageOwned);
 }
 
 const TorustiqMessage* messageReceiver(TorustiqPluginStageHandle stageHandle) {

@@ -4,7 +4,6 @@
 #include <spdlog/spdlog.h>
 #include <torustiq_sdk/plugins/typedefs.h>
 
-#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -76,23 +75,17 @@ void startReader(TorustiqPluginStageHandle stageHandle,
     ifstream file(instance->path);
     string line;
     while (getline(file, line)) {
-        // TODO:
-        // 1. create a new instance of message
-        // 2. deallocate memory
-        TorustiqMessage* msg =
-            (TorustiqMessage*)malloc(sizeof(TorustiqMessage));
-        msg->type = TORUSTIQ_MESSAGE_TYPE_DATA;
-        msg->payload_size = line.size();
-        msg->payload = (uint8_t*)malloc(msg->payload_size);
-        memcpy(msg->payload, line.c_str(), msg->payload_size);
-        hostGlobals.sendMessageFnPtr(stageHandle, msg);
-        // free(msg);
+        TorustiqMessage msg{};
+        msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
+        msg.payload_size = line.size();
+        msg.payload = reinterpret_cast<uint8_t*>(line.data());
+        hostGlobals.sendMessageFnPtr(stageHandle, &msg);
     }
 
     // Notify about end of file
-    TorustiqMessage* msg = (TorustiqMessage*)malloc(sizeof(TorustiqMessage));
-    msg->type = TORUSTIQ_MESSAGE_TYPE_EOF;
-    hostGlobals.sendMessageFnPtr(stageHandle, msg);
+    TorustiqMessage msg{};
+    msg.type = TORUSTIQ_MESSAGE_TYPE_EOF;
+    hostGlobals.sendMessageFnPtr(stageHandle, &msg);
 
     spdlog::debug("file :: Reached EOF in reader with handle {}", stageHandle);
 }

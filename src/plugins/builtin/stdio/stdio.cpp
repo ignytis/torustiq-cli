@@ -93,6 +93,8 @@ void startWriter(TorustiqPluginStageHandle stageHandle,
     spdlog::debug("stdio :: Starting writer stage with handle {}", stageHandle);
 
     while (true) {
+        // TODO: free memory? Perhaps will need to deep-copy the message +
+        // call a function from host
         const TorustiqMessage* msg =
             hostGlobals.receiveMessageFnPtr(stageHandle);
         if (msg == nullptr) {
