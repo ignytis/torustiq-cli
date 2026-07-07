@@ -6,4 +6,4 @@ stages:
 - name: Stdout Destination
   handler: stdio
   config:
-    format: "echo: %R"
+    output_format: "echo: %P"

@@ -1,15 +1,19 @@
 #include "stdio.hpp"
 
 #include <spdlog/spdlog.h>
+#include <torustiq_sdk/message.h>
 #include <torustiq_sdk/plugins/typedefs.h>
 
+#include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <map>
 
+#include "../../../common/strings.hpp"
 #include "../../../defs.hpp"
 
 using namespace std;
+using namespace TorustiqCli::Common;
 
 namespace {
 
@@ -18,9 +22,19 @@ namespace {
  */
 class StageInstance {
    public:
+    StageInstance(TorustiqPluginStageHandle stageHandle = 0,
+                  bool writer = false);
     TorustiqPluginStageHandle stageHandle;
     bool isWriter;  // true -> stdout, false -> stdin
+    /**
+     * Output format of messages. It has placeholders, like:
+     * %P - payload
+     */
+    string outputFormat;
 };
+
+StageInstance::StageInstance(TorustiqPluginStageHandle stageHandle, bool writer)
+    : stageHandle(stageHandle), isWriter(writer), outputFormat("%P") {}
 
 map<TorustiqPluginStageHandle, StageInstance> stageInstances;
 TorustiqHostGlobals hostGlobals;
@@ -51,10 +65,8 @@ void TorustiqCli::Plugins::Builtin::Stdio::CreateNewStage(
     // TODO: error handling. What if processor kind is passed? We have to return
     // an error.
 
-    StageInstance newInstance;
-    newInstance.isWriter = (args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK);
-    newInstance.stageHandle = args.stageHandle;
-
+    StageInstance newInstance(
+        args.stageHandle, args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK);
     stageInstances[args.stageHandle] = newInstance;
 }
 
@@ -64,9 +76,9 @@ void TorustiqCli::Plugins::Builtin::Stdio::SetStageConfigValue(
         return;
     }
     StageInstance& instance = stageInstances[stageHandle];
-    // TODO: add config here. At least we might have message format for output
-    // here An idea: I/O mode: reading line by line vs processing the whole
-    // stream
+    if (string(key) == "output_format") {
+        instance.outputFormat = string(value);
+    }
 }
 
 namespace {
@@ -77,14 +89,25 @@ void startReader(TorustiqPluginStageHandle stageHandle,
 
     string line;
     while (std::getline(cin, line)) {
-        TorustiqMessage* msg =
-            (TorustiqMessage*)malloc(sizeof(TorustiqMessage));
-        msg->payload_size = line.size();
-        msg->payload = (uint8_t*)malloc(msg->payload_size);
-        memcpy(msg->payload, line.c_str(), msg->payload_size);
-        hostGlobals.sendMessageFnPtr(stageHandle, msg);
-        free(msg);
+        TorustiqMessage msg{};
+        msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
+        msg.payload_size = line.size();
+        msg.payload = (uint8_t*)malloc(msg.payload_size);
+        if (msg.payload != nullptr) {
+            memcpy(msg.payload, line.c_str(), msg.payload_size);
+        }
+        msg.headers_count = 0;
+        msg.headers = nullptr;
+        hostGlobals.sendMessageFnPtr(stageHandle, &msg);
+        free(msg.payload);
     }
+
+    // Notify about end of file
+    // TODO: bring to some function to avoid code duplication with other
+    // plugins?
+    TorustiqMessage msg{};
+    msg.type = TORUSTIQ_MESSAGE_TYPE_EOF;
+    hostGlobals.sendMessageFnPtr(stageHandle, &msg);
 }
 }  // namespace
 
@@ -107,14 +130,22 @@ void startWriter(TorustiqPluginStageHandle stageHandle,
         if (msg->type == TORUSTIQ_MESSAGE_TYPE_EOF) {
             spdlog::debug(
                 "stdio :: Received EOF message. Exiting writer stage.");
+            torustiq_message_free(const_cast<TorustiqMessage*>(msg));
             break;
         }
 
         if (msg->type == TORUSTIQ_MESSAGE_TYPE_DATA) {
-            string line(reinterpret_cast<const char*>(msg->payload),
-                        msg->payload_size);
-            cout << line << endl;
+            char* payloadStr = new char[msg->payload_size + 1];
+            memcpy(payloadStr, msg->payload, msg->payload_size);
+            payloadStr[msg->payload_size] = '\0';
+            string payload(payloadStr);
+            string output(instance->outputFormat);
+            output = Strings::replaceAll(output, "%P", payload);
+            cout << output << endl;
+            delete payloadStr;
         }
+
+        torustiq_message_free(const_cast<TorustiqMessage*>(msg));
     }
 }
 

@@ -67,7 +67,6 @@ void TorustiqCli::Plugins::Builtin::File::SetStageConfigValue(
 
 namespace {
 
-// TODO: delete
 void startReader(TorustiqPluginStageHandle stageHandle,
                  StageInstance* instance) {
     // Open file for reading
@@ -83,6 +82,8 @@ void startReader(TorustiqPluginStageHandle stageHandle,
     }
 
     // Notify about end of file
+    // TODO: bring to some function to avoid code duplication with other
+    // plugins?
     TorustiqMessage msg{};
     msg.type = TORUSTIQ_MESSAGE_TYPE_EOF;
     hostGlobals.sendMessageFnPtr(stageHandle, &msg);
