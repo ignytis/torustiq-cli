@@ -1,0 +1,37 @@
+# Example pipeline demonstrating Lua module in all stage types (source, processor, sink)
+name: Lua demonstration pipeline with source, processor, and sink stages
+
+stages:
+  # Source stage: generates numbers 1-5
+  - name: Lua Source
+    handler: lua
+    config:
+      content: |
+        function run()
+          for i = 1, 5 do
+            sendMessage(tostring(i))
+          end
+        end
+
+  # Processor stage: multiplies each number by 10
+  - name: Lua Processor
+    handler: lua
+    config:
+      content: |
+        function process(data)
+          local num = tonumber(data)
+          if num then
+            sendMessage(tostring(num * 10))
+          else
+            sendMessage(data)
+          end
+        end
+
+  # Sink stage: prints formatted output
+  - name: Lua Sink
+    handler: lua
+    config:
+      content: |
+        function write(data)
+          print("Received: " .. data)
+        end
