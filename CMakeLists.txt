@@ -13,6 +13,9 @@ project(${APP_NAME} VERSION ${APP_VERSION} LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "build")
+# Prefer static libraries when searching
+# TODO: Linux-specific suffix here. Need to replace with something more cross-platform.
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a;.so")
 
 # Helps with debugging
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -21,7 +24,6 @@ find_package(CLI11 REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Lua REQUIRED)
-
 
 # SDK library
 find_path(TORUSTIQ_SDK_INCLUDE_DIR
@@ -43,9 +45,12 @@ add_executable(${APP_NAME_LOWERCASE} ${SOURCES})
 target_include_directories(${APP_NAME_LOWERCASE} PRIVATE src ${LUA_INCLUDE_DIR})
 target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE CLI11::CLI11)
 target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE spdlog::spdlog)
-target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE yaml-cpp::yaml-cpp)
 target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE torustiq_sdk)
-target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE ${LUA_LIBRARIES})
+# TODO: Linux-specific suffix here. Need to replace with something more cross-platform.
+target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE
+    libyaml-cpp.a
+    lua.a
+)
 
 add_compile_definitions(APP_NAME="${APP_NAME}")
 add_compile_definitions(APP_VERSION="${APP_VERSION}")
