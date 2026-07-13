@@ -15,9 +15,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "build")
 # Prefer static libraries when searching
 # TODO: Linux-specific suffix here. Need to replace with something more cross-platform.
-if (LINUX)
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a;.so")
-endif()
+# TODO2: is this needed at all?
+# if (LINUX)
+#     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a;.so")
+# endif()
 # Helps with debugging
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -43,27 +44,29 @@ target_include_directories(torustiq_sdk PUBLIC ${TORUSTIQ_SDK_INCLUDE_DIR})
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_executable(${APP_NAME_LOWERCASE} ${SOURCES})
 
-if(Lua_FOUND AND NOT TARGET Lua::Lua)
-  add_library(Lua::Lua INTERFACE IMPORTED)
-  set_target_properties(
-    Lua::Lua
-    PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${LUA_INCLUDE_DIR}"
-      INTERFACE_LINK_LIBRARIES "${LUA_LIBRARIES}"
-  )
-endif()
+# TODO: check if Windows build works without this
+# if(Lua_FOUND AND NOT TARGET Lua::Lua)
+#   add_library(Lua::Lua INTERFACE IMPORTED)
+#   set_target_properties(
+#     Lua::Lua
+#     PROPERTIES
+#       INTERFACE_INCLUDE_DIRECTORIES "${LUA_INCLUDE_DIR}"
+#       INTERFACE_LINK_LIBRARIES "${LUA_LIBRARIES}"
+#   )
+# endif()
 
 target_include_directories(${APP_NAME_LOWERCASE} PRIVATE src ${LUA_INCLUDE_DIR})
 target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE CLI11::CLI11)
 target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE spdlog::spdlog)
 target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE torustiq_sdk)
-# TODO: Linux-specific suffix here. Need to replace with something more cross-platform.
+
+# Link against static libraries if possible, otherwise link against shared libraries
 if (LINUX)
     target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE
-        libyaml-cpp.lib
-        lua.lib
+        yaml-cpp.a
+        lua.a
     )
-elseif (WIN32)
+else()
     target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE Lua::Lua)
     target_link_libraries(${APP_NAME_LOWERCASE} PRIVATE yaml-cpp::yaml-cpp)
 endif()

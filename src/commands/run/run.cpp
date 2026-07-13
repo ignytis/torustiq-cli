@@ -4,15 +4,13 @@
 #include <torustiq_sdk/plugins/typedefs.h>
 #include <yaml-cpp/yaml.h>
 
-#include <filesystem>
 #include <ranges>
 #include <unordered_set>
 #include <vector>
 
 #include "../../pipeline/pipeline.hpp"
-#include "../../plugins/builtin/factory.hpp"
+#include "../../plugins/factory.hpp"
 #include "../../plugins/stage_plugin.hpp"
-#include "../../system/dll.hpp"
 #include "../../typedefs/pipeline/pipeline.hpp"
 #include "globals.hpp"
 
@@ -21,8 +19,6 @@ using namespace std::ranges;
 
 using TorustiqCli::Commands::Run::RunCommand;
 using TorustiqCli::Pipeline::Pipeline;
-using TorustiqCli::System::DynamicLibrary;
-using TorustiqCli::System::kLibFileExtension;
 using TorustiqCli::Typedefs::Pipeline::PipelineDefinition;
 
 RunCommand::RunCommand(Configuration* config, string pipeline_path)
@@ -43,26 +39,12 @@ void RunCommand::run() {
         spdlog::debug("- {}", handler);
     }
 
-    // Format a set of plugins. Start with builtins
-    // TODO: call GetPlugins instead. Builtin plugins + libraries should be an
-    // internal logic of plugin factory
-    vector<StagePlugin> plugins_builtin =
-        TorustiqCli::Plugins::Builtin::GetBuiltinPlugins();
-
-    // TODO: implement plugins here
-    for (const filesystem::directory_entry& entry :
-         filesystem::directory_iterator(config->moduleDir)) {
-        if (entry.path().extension() == kLibFileExtension) {
-            DynamicLibrary lib = DynamicLibrary(entry.path().string());
-            // lib.get("init");
-        }
-    }
-
     vector<StagePlugin> plugins =
-        plugins_builtin | views::filter([&handlers](const StagePlugin& plugin) {
-            return handlers.contains(plugin.GetId());
-        }) |
-        to<vector<StagePlugin>>();
+        TorustiqCli::Plugins::LoadPlugins(config->moduleDir);
+    plugins = plugins | views::filter([&handlers](const StagePlugin& plugin) {
+                  return handlers.contains(plugin.GetId());
+              }) |
+              to<vector<StagePlugin>>();
 
     spdlog::debug("Initializing plugins...");
     for (StagePlugin& plugin : plugins) {
