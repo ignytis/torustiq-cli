@@ -1,7 +1,7 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_PIPELINE_H_
 #define _TORUSTIQ_CLI_PIPELINE_PIPELINE_H_
 
-#include <torustiq_sdk/plugins/typedefs.h>
+#include <torustiq_sdk/typedefs.h>
 
 #include <string>
 #include <unordered_set>

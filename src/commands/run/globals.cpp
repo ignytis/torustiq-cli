@@ -1,7 +1,7 @@
 #include "globals.hpp"
 
 #include <torustiq_sdk/message.h>
-#include <torustiq_sdk/plugins/typedefs.h>
+#include <torustiq_sdk/typedefs.h>
 
 #include "../../pipeline/pipeline.hpp"
 #include "../../pipeline/stages/abstract_stage.hpp"

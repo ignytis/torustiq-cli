@@ -29,9 +29,12 @@ find_package(Lua REQUIRED)
 
 # SDK library
 find_path(TORUSTIQ_SDK_INCLUDE_DIR
-    NAMES torustiq_sdk/plugins/typedefs.h
-    PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../torustiq-cpp-lib-sdk/include
-    ENV TORUSTIQ_SDK_DIR
+    NAMES torustiq_sdk/typedefs.h
+    HINTS
+        "$ENV{TORUSTIQ_SDK_DIR}/include"
+        "$ENV{TORUSTIQ_SDK_DIR}"
+    PATHS
+        "${CMAKE_CURRENT_SOURCE_DIR}/../torustiq-sdk/include"
     REQUIRED
 )
 

@@ -1,7 +1,7 @@
 #include "run.hpp"
 
 #include <spdlog/spdlog.h>
-#include <torustiq_sdk/plugins/typedefs.h>
+#include <torustiq_sdk/typedefs.h>
 #include <yaml-cpp/yaml.h>
 
 #include <ranges>

@@ -1,7 +1,7 @@
 #ifndef _TORUSTIQ_CLI_PIPELINE_STAGES_ABSTRACT_STAGE_H_
 #define _TORUSTIQ_CLI_PIPELINE_STAGES_ABSTRACT_STAGE_H_
 
-#include <torustiq_sdk/plugins/typedefs.h>
+#include <torustiq_sdk/typedefs.h>
 
 #include <string>
 

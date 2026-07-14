@@ -13,7 +13,7 @@ extern "C" {
 }
 #include <spdlog/spdlog.h>
 #include <torustiq_sdk/message.h>
-#include <torustiq_sdk/plugins/typedefs.h>
+#include <torustiq_sdk/typedefs.h>
 
 #include "../../../defs.hpp"
 

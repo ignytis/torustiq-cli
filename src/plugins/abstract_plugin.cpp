@@ -1,6 +1,6 @@
 #include "abstract_plugin.hpp"
 
-#include <torustiq_sdk/plugins/typedefs.h>
+#include <torustiq_sdk/typedefs.h>
 
 using namespace TorustiqCli::Plugins;
 

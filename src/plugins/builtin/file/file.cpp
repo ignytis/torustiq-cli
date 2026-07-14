@@ -2,7 +2,7 @@
 #include "file.hpp"
 
 #include <spdlog/spdlog.h>
-#include <torustiq_sdk/plugins/typedefs.h>
+#include <torustiq_sdk/typedefs.h>
 
 #include <fstream>
 #include <iostream>

@@ -1,7 +1,7 @@
 #ifndef _TORUSTIQ_CLI_PLUGINS_BUILTIN_LUA_H_
 #define _TORUSTIQ_CLI_PLUGINS_BUILTIN_LUA_H_
 
-#include <torustiq_sdk/plugins/typedefs.h>
+#include <torustiq_sdk/typedefs.h>
 
 namespace TorustiqCli {
 namespace Plugins {
