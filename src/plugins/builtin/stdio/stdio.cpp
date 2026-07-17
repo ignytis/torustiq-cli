@@ -1,15 +1,13 @@
 #include "stdio.hpp"
 
+#include <spdlog/spdlog.h>
+#include <torustiq_sdk/message.h>
+#include <torustiq_sdk/typedefs.h>
 
 #include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <map>
-
-#include <spdlog/spdlog.h>
-
-#include <torustiq_sdk/message.h>
-#include <torustiq_sdk/typedefs.h>
 
 #include "../../../common/strings.hpp"
 #include "../../../defs.hpp"

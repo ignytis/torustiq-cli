@@ -1,16 +1,14 @@
 
 #include "file.hpp"
 
+#include <spdlog/spdlog.h>
+#include <torustiq_sdk/message.h>
+#include <torustiq_sdk/typedefs.h>
 
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
-
-#include <spdlog/spdlog.h>
-
-#include <torustiq_sdk/message.h>
-#include <torustiq_sdk/typedefs.h>
 
 #include "../../../defs.hpp"
 
@@ -18,18 +16,23 @@ using namespace std;
 
 namespace {
 
+enum StageInstanceMode {
+    STAGE_INSTANCE_MODE_READER,
+    STAGE_INSTANCE_MODE_WRITER,
+};
+
 /**
  * Represents an instance of a file stage.
  */
 class StageInstance {
    public:
-    StageInstance(bool writer = false);
+    StageInstance(StageInstanceMode mode);
     TorustiqPluginStageHandle stageHandle;
     string path;
-    bool isWriter;  // true -> write file; false -> read file
+    StageInstanceMode mode;
 };
 
-StageInstance::StageInstance(bool writer) : isWriter(writer) {}
+StageInstance::StageInstance(StageInstanceMode mode) : mode(mode) {}
 
 map<TorustiqPluginStageHandle, StageInstance> stageInstances;
 
@@ -50,11 +53,12 @@ void TorustiqCli::Plugins::Builtin::File::CreateNewStage(
     CreateNewStageFnArgs args) {
     // TODO: error handling. What if processor kind is passed? We have to return
     // an error.
-    StageInstance newInstance;
-    newInstance.isWriter = (args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK);
+    StageInstance newInstance(args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK
+                                  ? STAGE_INSTANCE_MODE_WRITER
+                                  : STAGE_INSTANCE_MODE_READER);
     newInstance.stageHandle = args.stageHandle;
 
-    stageInstances[args.stageHandle] = newInstance;
+    stageInstances.insert({args.stageHandle, newInstance});
 }
 
 void TorustiqCli::Plugins::Builtin::File::SetStageConfigValue(
@@ -62,7 +66,7 @@ void TorustiqCli::Plugins::Builtin::File::SetStageConfigValue(
     if (stageHandle >= stageInstances.size()) {
         return;
     }
-    StageInstance& instance = stageInstances[stageHandle];
+    StageInstance& instance = stageInstances.at(stageHandle);
     if (string(key) == "path") {
         instance.path = string(value);
     }
@@ -83,7 +87,6 @@ void startReader(TorustiqPluginStageHandle stageHandle,
         msg.payload = reinterpret_cast<uint8_t*>(line.data());
         hostGlobals.sendMessageFnPtr(stageHandle, &msg);
     }
-
 
     TorustiqMessage msg = torustiq_message_create_eof();
     hostGlobals.sendMessageFnPtr(stageHandle, &msg);
@@ -107,12 +110,18 @@ void TorustiqCli::Plugins::Builtin::File::Start(
         return;
     }
 
-    StageInstance& instance = stageInstances[stageHandle];
-
-    if (instance.isWriter) {
-        startWriter(stageHandle, &instance);
-    } else {
-        startReader(stageHandle, &instance);
+    StageInstance& instance = stageInstances.at(stageHandle);
+    switch (instance.mode) {
+        case STAGE_INSTANCE_MODE_READER:
+            startReader(stageHandle, &instance);
+            break;
+        case STAGE_INSTANCE_MODE_WRITER:
+            startWriter(stageHandle, &instance);
+            break;
+        default:
+            spdlog::error("file :: unreachable code");
+            exit(EXIT_FAILURE);
+            break;
     }
 }
 
