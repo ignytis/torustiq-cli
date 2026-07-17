@@ -1,0 +1,12 @@
+# Just sends back whatever is submitted to stdin
+name: An example of pipeline which reads all files in directory and prints them to stdout
+stages:
+- name: File Source
+  handler: file
+  config:
+    path: examples/input_files
+    contents_mode: directory_files
+- name: Stdout Destination
+  handler: stdio
+  config:
+    format: "A line from file: %R"
