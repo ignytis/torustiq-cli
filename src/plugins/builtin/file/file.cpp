@@ -1,13 +1,16 @@
 
 #include "file.hpp"
 
-#include <spdlog/spdlog.h>
-#include <torustiq_sdk/typedefs.h>
 
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
+
+#include <spdlog/spdlog.h>
+
+#include <torustiq_sdk/message.h>
+#include <torustiq_sdk/typedefs.h>
 
 #include "../../../defs.hpp"
 
@@ -81,11 +84,8 @@ void startReader(TorustiqPluginStageHandle stageHandle,
         hostGlobals.sendMessageFnPtr(stageHandle, &msg);
     }
 
-    // Notify about end of file
-    // TODO: bring to some function to avoid code duplication with other
-    // plugins?
-    TorustiqMessage msg{};
-    msg.type = TORUSTIQ_MESSAGE_TYPE_EOF;
+
+    TorustiqMessage msg = torustiq_message_create_eof();
     hostGlobals.sendMessageFnPtr(stageHandle, &msg);
 
     spdlog::debug("file :: Reached EOF in reader with handle {}", stageHandle);

@@ -11,7 +11,9 @@ extern "C" {
 #include <lua.h>
 #include <lualib.h>
 }
+
 #include <spdlog/spdlog.h>
+
 #include <torustiq_sdk/message.h>
 #include <torustiq_sdk/typedefs.h>
 
@@ -250,9 +252,7 @@ void startProcessor(TorustiqPluginStageHandle stageHandle,
             spdlog::debug("lua :: Received EOF message in processor");
             torustiq_message_free(const_cast<TorustiqMessage*>(msg));
 
-            // Send EOF downstream
-            TorustiqMessage eofMsg{};
-            eofMsg.type = TORUSTIQ_MESSAGE_TYPE_EOF;
+            TorustiqMessage eofMsg = torustiq_message_create_eof();
             hostGlobals.sendMessageFnPtr(stageHandle, &eofMsg);
             break;
         }
