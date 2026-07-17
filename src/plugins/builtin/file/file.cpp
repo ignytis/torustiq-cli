@@ -11,28 +11,16 @@
 #include <string>
 
 #include "../../../defs.hpp"
+#include "file_reader.hpp"
+#include "typedefs.hpp"
 
 using namespace std;
 
+using TorustiqCli::Plugins::Builtin::File::StageInstance;
+using TorustiqCli::Plugins::Builtin::File::StageInstanceMode;
+using TorustiqCli::Plugins::Builtin::File::startReader;
+
 namespace {
-
-enum StageInstanceMode {
-    STAGE_INSTANCE_MODE_READER,
-    STAGE_INSTANCE_MODE_WRITER,
-};
-
-/**
- * Represents an instance of a file stage.
- */
-class StageInstance {
-   public:
-    StageInstance(StageInstanceMode mode);
-    TorustiqPluginStageHandle stageHandle;
-    string path;
-    StageInstanceMode mode;
-};
-
-StageInstance::StageInstance(StageInstanceMode mode) : mode(mode) {}
 
 map<TorustiqPluginStageHandle, StageInstance> stageInstances;
 
@@ -53,11 +41,10 @@ void TorustiqCli::Plugins::Builtin::File::CreateNewStage(
     CreateNewStageFnArgs args) {
     // TODO: error handling. What if processor kind is passed? We have to return
     // an error.
-    StageInstance newInstance(args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK
-                                  ? STAGE_INSTANCE_MODE_WRITER
-                                  : STAGE_INSTANCE_MODE_READER);
-    newInstance.stageHandle = args.stageHandle;
-
+    StageInstanceMode mode = args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK
+                                 ? StageInstanceMode::WRITER
+                                 : StageInstanceMode::READER;
+    StageInstance newInstance(args.stageHandle, mode, hostGlobals);
     stageInstances.insert({args.stageHandle, newInstance});
 }
 
@@ -67,32 +54,26 @@ void TorustiqCli::Plugins::Builtin::File::SetStageConfigValue(
         return;
     }
     StageInstance& instance = stageInstances.at(stageHandle);
-    if (string(key) == "path") {
-        instance.path = string(value);
+    string strKey = string(key);
+    string strValue = string(value);
+    if (strKey == "path") {
+        instance.path = strValue;
+    } else if (strKey == "contents_mode") {
+        if (strValue == "file_lines") {
+            instance.contentsMode = StageInstanceContentsMode::FILE_LINES;
+        } else if (strValue == "directory_files") {
+            instance.contentsMode = StageInstanceContentsMode::DIRECTORY_FILES;
+        } else {
+            spdlog::error(
+                "file :: Unrecognized contents mode '{}' for stage with handle "
+                "{}",
+                strValue, stageHandle);
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
 namespace {
-
-void startReader(TorustiqPluginStageHandle stageHandle,
-                 StageInstance* instance) {
-    // Open file for reading
-    spdlog::debug("file :: Starting reader stage with handle {}", stageHandle);
-    ifstream file(instance->path);
-    string line;
-    while (getline(file, line)) {
-        TorustiqMessage msg{};
-        msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
-        msg.payload_size = line.size();
-        msg.payload = reinterpret_cast<uint8_t*>(line.data());
-        hostGlobals.sendMessageFnPtr(stageHandle, &msg);
-    }
-
-    TorustiqMessage msg = torustiq_message_create_eof();
-    hostGlobals.sendMessageFnPtr(stageHandle, &msg);
-
-    spdlog::debug("file :: Reached EOF in reader with handle {}", stageHandle);
-}
 
 void startWriter(TorustiqPluginStageHandle stageHandle,
                  StageInstance* instance) {
@@ -112,10 +93,10 @@ void TorustiqCli::Plugins::Builtin::File::Start(
 
     StageInstance& instance = stageInstances.at(stageHandle);
     switch (instance.mode) {
-        case STAGE_INSTANCE_MODE_READER:
-            startReader(stageHandle, &instance);
+        case READER:
+            startReader(&instance);
             break;
-        case STAGE_INSTANCE_MODE_WRITER:
+        case WRITER:
             startWriter(stageHandle, &instance);
             break;
         default:
