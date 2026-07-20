@@ -9,4 +9,4 @@ stages:
 - name: Stdout Destination
   handler: stdio
   config:
-    format: "A line from file: %R"
+    output_format: "Payload of file %H[file_name]:\n---\n%P---\n"

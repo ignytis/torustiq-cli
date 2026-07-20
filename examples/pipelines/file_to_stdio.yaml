@@ -8,4 +8,4 @@ stages:
 - name: Stdout Destination
   handler: stdio
   config:
-    format: "A line from file: %R"
+    output_format: "A line from file '%H[file_name]': %P"

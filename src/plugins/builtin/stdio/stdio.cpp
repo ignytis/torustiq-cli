@@ -67,15 +67,16 @@ void TorustiqCli::Plugins::Builtin::Stdio::CreateNewStage(
 
     StageInstance newInstance(
         args.stageHandle, args.stageKind == TORUSTIQ_PLUGIN_STAGE_KIND_SINK);
-    stageInstances[args.stageHandle] = newInstance;
+    stageInstances.insert({args.stageHandle, newInstance});
 }
 
 void TorustiqCli::Plugins::Builtin::Stdio::SetStageConfigValue(
     TorustiqPluginStageHandle stageHandle, const char* key, const char* value) {
-    if (stageHandle >= stageInstances.size()) {
+    if (!stageInstances.contains(stageHandle)) {
+        spdlog::error("stdio :: Stage handle not found: {}", stageHandle);
         return;
     }
-    StageInstance& instance = stageInstances[stageHandle];
+    StageInstance& instance = stageInstances.at(stageHandle);
     if (string(key) == "output_format") {
         instance.outputFormat = string(value);
     }
@@ -137,6 +138,13 @@ void startWriter(TorustiqPluginStageHandle stageHandle,
             string payload(payloadStr);
             string output(instance->outputFormat);
             output = Strings::replaceAll(output, "%P", payload);
+            for (int i = 0; i < msg->headers_count; i++) {
+                TorustiqMessageHeader* header = &msg->headers[i];
+                string key(string("%H[") + header->key + string("]"));
+                if (output.contains(key)) {
+                    output = Strings::replaceAll(output, key, header->value);
+                }
+            }
             cout << output << endl;
             delete payloadStr;
         }
@@ -151,7 +159,7 @@ void TorustiqCli::Plugins::Builtin::Stdio::Start(
         spdlog::error("stdio :: Stage handle not found: {}", stageHandle);
         return;
     }
-    StageInstance& instance = stageInstances[stageHandle];
+    StageInstance& instance = stageInstances.at(stageHandle);
 
     if (instance.isWriter) {
         startWriter(stageHandle, &instance);

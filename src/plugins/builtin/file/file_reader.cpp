@@ -20,12 +20,26 @@ void startFileLinesReader(StageInstance* instance) {
     spdlog::debug("file :: Starting reader stage with handle {}", stageHandle);
     ifstream file(instance->path);
     string line;
+    int lineIndex = 0;
     while (getline(file, line)) {
         TorustiqMessage msg{};
         msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
         msg.payload_size = line.size();
         msg.payload = reinterpret_cast<uint8_t*>(line.data());
+        TorustiqMessageHeader headers[] = {
+            {
+                .key = "line_number",
+                .value = to_string(lineIndex).c_str(),
+            },
+            {
+                .key = "file_name",
+                .value = instance->path.c_str(),
+            }};
+        msg.headers_count = sizeof(headers) / sizeof(*headers);
+        msg.headers = headers;
+
         instance->hostGlobals.sendMessageFnPtr(stageHandle, &msg);
+        lineIndex++;
     }
 }
 
@@ -43,6 +57,13 @@ void startDirectoryFilesReader(StageInstance* instance) {
         msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
         msg.payload_size = contentStr.size();
         msg.payload = reinterpret_cast<uint8_t*>(contentStr.data());
+        TorustiqMessageHeader headers[] = {{
+            .key = "file_name",
+            .value = entry.path().c_str(),
+        }};
+        msg.headers_count = sizeof(headers) / sizeof(*headers);
+        msg.headers = headers;
+
         instance->hostGlobals.sendMessageFnPtr(stageHandle, &msg);
     }
 }
