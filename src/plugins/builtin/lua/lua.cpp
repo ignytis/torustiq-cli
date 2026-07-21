@@ -42,7 +42,7 @@ int luaSendMessage(lua_State* L) {
     TorustiqMessage msg{};
     msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
     msg.payload_size = payloadSize;
-    msg.payload = reinterpret_cast<uint8_t*>(malloc(payloadSize));
+    msg.payload = reinterpret_cast<TorustiqBytes>(malloc(payloadSize));
     if (msg.payload != nullptr) {
         memcpy(msg.payload, payloadStr, payloadSize);
     }

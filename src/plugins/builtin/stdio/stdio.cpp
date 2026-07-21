@@ -93,7 +93,7 @@ void startReader(TorustiqPluginStageHandle stageHandle,
         TorustiqMessage msg{};
         msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
         msg.payload_size = line.size();
-        msg.payload = (uint8_t*)malloc(msg.payload_size);
+        msg.payload = (TorustiqBytes)malloc(msg.payload_size);
         if (msg.payload != nullptr) {
             memcpy(msg.payload, line.c_str(), msg.payload_size);
         }

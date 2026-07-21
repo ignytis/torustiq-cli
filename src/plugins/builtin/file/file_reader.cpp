@@ -25,7 +25,7 @@ void startFileLinesReader(StageInstance* instance) {
         TorustiqMessage msg{};
         msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
         msg.payload_size = line.size();
-        msg.payload = reinterpret_cast<uint8_t*>(line.data());
+        msg.payload = reinterpret_cast<TorustiqBytes>(line.data());
         TorustiqMessageHeader headers[] = {
             {
                 .key = "line_number",
@@ -56,7 +56,7 @@ void startDirectoryFilesReader(StageInstance* instance) {
 
         msg.type = TORUSTIQ_MESSAGE_TYPE_DATA;
         msg.payload_size = contentStr.size();
-        msg.payload = reinterpret_cast<uint8_t*>(contentStr.data());
+        msg.payload = reinterpret_cast<TorustiqBytes>(contentStr.data());
         TorustiqMessageHeader headers[] = {{
             .key = "file_name",
             .value = entry.path().c_str(),
