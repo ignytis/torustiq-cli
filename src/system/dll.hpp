@@ -31,12 +31,14 @@ constexpr const char* kLibFileExtension = ".so";
  * explicit
  *
  * using FuncType = void(*)(int);
- * auto my_func = lib.get<FuncType>("my_function");
- * my_func(42);
+ * if (lib.IsValid()) {
+ *     auto my_func = lib.get<FuncType>("my_function");
+ *     if (my_func) my_func(42);
+ * }
  */
 class DynamicLibrary {
    public:
-    explicit DynamicLibrary(const string& name) {
+    explicit DynamicLibrary(const string& name) : library_name_(name) {
 #ifdef _WIN32
         handle_ = LoadLibraryA(name.c_str());
 #else
@@ -49,8 +51,13 @@ class DynamicLibrary {
         handle_ = dlopen(full_name.c_str(), RTLD_NOW | RTLD_LOCAL);
 #endif
         if (!handle_) {
-            spdlog::error("Failed to load library: {}", name);
-            exit(1);
+#ifdef _WIN32
+            last_error_ = "Failed to load library: " + name;
+#else
+            const char* err = dlerror();
+            last_error_ = string("Failed to load library: ") + name +
+                         (err ? string(" (") + err + ")" : "");
+#endif
         }
     }
 
@@ -64,23 +71,41 @@ class DynamicLibrary {
         }
     }
 
+    bool IsValid() const { return handle_ != nullptr; }
+
+    string GetLastError() const { return last_error_; }
+
     // Get function pointer (use extern "C" in the library for C linkage)
+    // Returns nullptr if symbol not found instead of crashing
     template <typename Func>
     Func get(const string& symbol) const {
+        if (!handle_) {
+            return nullptr;
+        }
 #ifdef _WIN32
         auto proc = GetProcAddress(handle_, symbol.c_str());
 #else
         auto proc = dlsym(handle_, symbol.c_str());
 #endif
         if (!proc) {
-            spdlog::error("Symbol not found: {}", symbol);
-            exit(1);
+#ifdef _WIN32
+            const_cast<DynamicLibrary*>(this)->last_error_ =
+                "Symbol not found: " + symbol;
+#else
+            const char* err = dlerror();
+            const_cast<DynamicLibrary*>(this)->last_error_ =
+                string("Symbol not found: ") + symbol +
+                (err ? string(" (") + err + ")" : "");
+#endif
+            return nullptr;
         }
         return reinterpret_cast<Func>(proc);
     }
 
    private:
     LibHandle handle_ = nullptr;
+    string library_name_;
+    string last_error_;
 
     // Disable copy/move for simplicity (or implement if needed)
     DynamicLibrary(const DynamicLibrary&) = delete;
