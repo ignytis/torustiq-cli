@@ -27,14 +27,77 @@ class StageInstance;
 extern map<TorustiqPluginStageHandle, StageInstance> stageInstances;
 extern TorustiqHostGlobals hostGlobals;
 
-// Wrapper function for sendMessage to be called from Lua
+/**
+ * Pushes a headers Lua table (at stack index `tableIndex`) onto a
+ * TorustiqMessage as a heap-allocated array. The caller is responsible for
+ * freeing both the key/value strings and the array itself via
+ * freeMsgHeaders().
+ */
+void buildMsgHeaders(lua_State* L, int tableIndex, TorustiqMessage& msg) {
+    // Count entries first
+    size_t count = 0;
+    lua_pushnil(L);
+    while (lua_next(L, tableIndex) != 0) {
+        count++;
+        lua_pop(L, 1);
+    }
+
+    if (count == 0) {
+        msg.headers_count = 0;
+        msg.headers = nullptr;
+        return;
+    }
+
+    TorustiqMessageHeader* headers = new TorustiqMessageHeader[count];
+    size_t i = 0;
+    lua_pushnil(L);
+    while (lua_next(L, tableIndex) != 0) {
+        const char* k = lua_tostring(L, -2);
+        const char* v = lua_tostring(L, -1);
+        headers[i].key = k != nullptr ? strdup(k) : strdup("");
+        headers[i].value = v != nullptr ? strdup(v) : strdup("");
+        i++;
+        lua_pop(L, 1);
+    }
+
+    msg.headers_count = count;
+    msg.headers = headers;
+}
+
+/// Frees memory allocated by buildMsgHeaders().
+void freeMsgHeaders(TorustiqMessage& msg) {
+    for (size_t i = 0; i < msg.headers_count; i++) {
+        free(const_cast<char*>(msg.headers[i].key));
+        free(const_cast<char*>(msg.headers[i].value));
+    }
+    delete[] msg.headers;
+    msg.headers = nullptr;
+    msg.headers_count = 0;
+}
+
+/**
+ * Pushes the headers of a message as a Lua table onto the stack.
+ * Leaves an empty table if the message has no headers.
+ */
+void pushMsgHeaders(lua_State* L, const TorustiqMessage* msg) {
+    lua_newtable(L);
+    for (size_t i = 0; i < msg->headers_count; i++) {
+        lua_pushstring(L, msg->headers[i].value);
+        lua_setfield(L, -2, msg->headers[i].key);
+    }
+}
+
+/**
+ * Lua binding: sendMessage(payload [, headers])
+ * headers is an optional table of string key-value pairs.
+ */
 int luaSendMessage(lua_State* L) {
     // Get the stage handle from the Lua registry
     lua_getfield(L, LUA_REGISTRYINDEX, "stage_handle");
     TorustiqPluginStageHandle stageHandle = lua_tointeger(L, -1);
     lua_pop(L, 1);
 
-    // Get the message payload from Lua argument
+    // Get the message payload from first Lua argument
     size_t payloadSize = 0;
     const char* payloadStr = luaL_checklstring(L, 1, &payloadSize);
 
@@ -46,17 +109,30 @@ int luaSendMessage(lua_State* L) {
     if (msg.payload != nullptr) {
         memcpy(msg.payload, payloadStr, payloadSize);
     }
-    msg.headers_count = 0;
-    msg.headers = nullptr;
+
+    // Optional second argument: headers table
+    if (lua_istable(L, 2)) {
+        buildMsgHeaders(L, 2, msg);
+    } else {
+        msg.headers_count = 0;
+        msg.headers = nullptr;
+    }
 
     // Send the message
     hostGlobals.sendMessageFnPtr(stageHandle, &msg);
     free(msg.payload);
+    freeMsgHeaders(msg);
 
     return 0;
 }
 
-// Wrapper function for receiveMessage to be called from Lua
+/**
+ * Lua binding: receiveMessage() -> table | nil
+ * Returned table fields:
+ *   type    (integer)
+ *   payload (string, only for DATA messages)
+ *   headers (table of string key-value pairs)
+ */
 int luaReceiveMessage(lua_State* L) {
     // Get the stage handle from the Lua registry
     lua_getfield(L, LUA_REGISTRYINDEX, "stage_handle");
@@ -84,6 +160,10 @@ int luaReceiveMessage(lua_State* L) {
                         msg->payload_size);
         lua_setfield(L, -2, "payload");
     }
+
+    // Add headers as a nested table
+    pushMsgHeaders(L, msg);
+    lua_setfield(L, -2, "headers");
 
     // Free the message
     torustiq_message_free(const_cast<TorustiqMessage*>(msg));
@@ -257,13 +337,14 @@ void startProcessor(TorustiqPluginStageHandle stageHandle,
         }
 
         if (msg->type == TORUSTIQ_MESSAGE_TYPE_DATA) {
-            // Call the process() function with the message payload
+            // Call the process() function with the message payload and headers
             lua_getglobal(instance->luaState, "process");
             if (lua_isfunction(instance->luaState, -1)) {
                 lua_pushlstring(instance->luaState,
                                 reinterpret_cast<const char*>(msg->payload),
                                 msg->payload_size);
-                int result = lua_pcall(instance->luaState, 1, 0, 0);
+                pushMsgHeaders(instance->luaState, msg);
+                int result = lua_pcall(instance->luaState, 2, 0, 0);
                 if (result != LUA_OK) {
                     const char* error = lua_tostring(instance->luaState, -1);
                     spdlog::error("lua :: Error processing message: {}",
@@ -302,13 +383,14 @@ void startSink(TorustiqPluginStageHandle stageHandle, StageInstance* instance) {
         }
 
         if (msg->type == TORUSTIQ_MESSAGE_TYPE_DATA) {
-            // Call the write() function with the message payload
+            // Call the write() function with the message payload and headers
             lua_getglobal(instance->luaState, "write");
             if (lua_isfunction(instance->luaState, -1)) {
                 lua_pushlstring(instance->luaState,
                                 reinterpret_cast<const char*>(msg->payload),
                                 msg->payload_size);
-                int result = lua_pcall(instance->luaState, 1, 0, 0);
+                pushMsgHeaders(instance->luaState, msg);
+                int result = lua_pcall(instance->luaState, 2, 0, 0);
                 if (result != LUA_OK) {
                     const char* error = lua_tostring(instance->luaState, -1);
                     spdlog::error("lua :: Error writing message: {}",

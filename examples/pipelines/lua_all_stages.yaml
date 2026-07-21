@@ -9,7 +9,9 @@ stages:
       content: |
         function run()
           for i = 1, 5 do
-            sendMessage(tostring(i))
+            headers = {}
+            headers["source"] = "lua_header_" .. tostring(i)
+            sendMessage(tostring(i), headers)
           end
         end
 
@@ -17,21 +19,15 @@ stages:
   - name: Lua Processor
     handler: lua
     config:
-      content: |
-        function process(data)
-          local num = tonumber(data)
-          if num then
-            sendMessage(tostring(num * 10))
-          else
-            sendMessage(data)
-          end
-        end
+      path: examples/scripts/stage_processor_multiplier.lua
 
   # Sink stage: prints formatted output
   - name: Lua Sink
     handler: lua
     config:
       content: |
-        function write(data)
-          print("Received: " .. data)
+        function write(data, headers)
+          print("Received message: ")
+          print("  Payload: " .. data)
+          print("  Lua header:" .. headers["source"])
         end
